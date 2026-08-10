@@ -1307,6 +1307,7 @@ html, body {
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 </head>
 <body>
 
@@ -1597,6 +1598,56 @@ html, body {
     <div id="tbRecurringList"></div>
     <div class="modal-actions">
       <button class="btn-cancel" style="flex:1;" onclick="closeTbRecurringModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="editSeriesModalOverlay">
+  <div class="modal">
+    <h2>Edit Repeating Series</h2>
+    <div style="color:var(--muted); font-size:13px; margin-bottom:16px;">Changes apply going forward, and update every copy of this series already on the calendar too — including the anchor date and recurrence type, which stay fixed.</div>
+    <div class="field">
+      <label>Title</label>
+      <input type="text" id="esTitle" maxlength="80">
+    </div>
+    <div class="field">
+      <label>Note (optional)</label>
+      <textarea id="esNote" maxlength="140"></textarea>
+    </div>
+    <div class="field">
+      <label>Category</label>
+      <div class="category-picks">
+        <button class="cat-btn" id="esCatPersonal" onclick="pickEsCategory('personal')">Personal</button>
+        <button class="cat-btn" id="esCatImca" onclick="pickEsCategory('imca')">IMCA</button>
+        <button class="cat-btn" id="esCatRiivet" onclick="pickEsCategory('riivet')">Riivet</button>
+        <button class="cat-btn" id="esCatFamily" onclick="pickEsCategory('family')">Family</button>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Start Time</label>
+        <select id="esStart"></select>
+      </div>
+      <div class="field">
+        <label>End Time</label>
+        <select id="esEnd"></select>
+      </div>
+    </div>
+    <div class="field" id="esDowWrap" style="display:none;">
+      <label>On which day(s)?</label>
+      <div class="dow-picks">
+        <label class="dow-check"><input type="checkbox" class="es-dow-check" value="0"> Sun</label>
+        <label class="dow-check"><input type="checkbox" class="es-dow-check" value="1"> M</label>
+        <label class="dow-check"><input type="checkbox" class="es-dow-check" value="2"> Tu</label>
+        <label class="dow-check"><input type="checkbox" class="es-dow-check" value="3"> W</label>
+        <label class="dow-check"><input type="checkbox" class="es-dow-check" value="4"> Th</label>
+        <label class="dow-check"><input type="checkbox" class="es-dow-check" value="5"> F</label>
+        <label class="dow-check"><input type="checkbox" class="es-dow-check" value="6"> Sat</label>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeEditSeriesModal()">Cancel</button>
+      <button class="btn-save" onclick="saveEditedSeries()">Save Changes</button>
     </div>
   </div>
 </div>
@@ -2466,14 +2517,6 @@ function renderTeamProjects() {
 const RO_CATEGORY_LABELS = { personal: 'Personal Time', imca: 'IMCA Projects', riivet: 'Riivet Projects' };
 let roDate = todayStr();
 
-async function publicFetch(path) {
-  try {
-    const res = await fetch(`${DB_URL}/${path}.json`);
-    if (!res.ok) return null;
-    return await res.json();
-  } catch (e) { return null; }
-}
-
 function shiftRoDate(deltaDays) {
   const d = new Date(roDate + 'T00:00:00');
   d.setDate(d.getDate() + deltaDays);
@@ -2481,13 +2524,7 @@ function shiftRoDate(deltaDays) {
   renderReadOnlyTimeblocks();
 }
 
-async function initReadOnlyView() {
-  const dirEntry = await publicFetch(`directory/${roTargetUid}`);
-  const personName = (dirEntry && dirEntry.name) ? dirEntry.name : 'This';
-  document.getElementById('roPageTitle').textContent = `${personName}'s Board`;
-  document.getElementById('roSubmitLink').href = location.pathname + '?submit=1&who=' + roTargetUid;
-
-  const availData = await publicFetch(`availability/${roTargetUid}`);
+function renderAvailBadge(availData) {
   const badge = document.getElementById('roAvailBadge');
   if (availData && availData.status) {
     badge.style.display = 'inline-block';
@@ -2502,15 +2539,43 @@ async function initReadOnlyView() {
       badge.style.color = 'var(--high)';
       badge.style.border = '1px solid rgba(229, 72, 77, 0.4)';
     }
+  } else {
+    badge.style.display = 'inline-block';
+    badge.textContent = 'Status unknown';
+    badge.style.background = 'var(--surface-2)';
+    badge.style.color = 'var(--muted)';
+    badge.style.border = '1px solid var(--line)';
   }
+}
 
-  const tasksData = await publicFetch(`publicTasks/${roTargetUid}`);
-  const roTasks = tasksData ? Object.values(tasksData) : [];
-  renderReadOnlyTasks(roTasks);
+// Live listeners, not one-time fetches — the page updates the instant something changes
+// elsewhere (a task gets added, a time block edited, availability flipped), no refresh needed.
+// Nothing here ever reloads the page or resets what day you're currently browsing.
+function initReadOnlyView() {
+  const db = firebase.database();
 
-  const busyData = await publicFetch(`busyTimes/${roTargetUid}`);
-  window.__roBusy = busyData ? Object.values(busyData) : [];
-  renderReadOnlyTimeblocks();
+  db.ref(`directory/${roTargetUid}`).on('value', snap => {
+    const dirEntry = snap.val();
+    const personName = (dirEntry && dirEntry.name) ? dirEntry.name : 'This';
+    document.getElementById('roPageTitle').textContent = `${personName}'s Board`;
+  });
+  document.getElementById('roSubmitLink').href = location.pathname + '?submit=1&who=' + roTargetUid;
+
+  db.ref(`availability/${roTargetUid}`).on('value', snap => {
+    renderAvailBadge(snap.val());
+  });
+
+  db.ref(`publicTasks/${roTargetUid}`).on('value', snap => {
+    const tasksData = snap.val();
+    const roTasks = tasksData ? Object.values(tasksData) : [];
+    renderReadOnlyTasks(roTasks);
+  });
+
+  db.ref(`busyTimes/${roTargetUid}`).on('value', snap => {
+    const busyData = snap.val();
+    window.__roBusy = busyData ? Object.values(busyData) : [];
+    renderReadOnlyTimeblocks();
+  });
 }
 
 function renderReadOnlyTasks(roTasks) {
@@ -3269,7 +3334,8 @@ function renderTbRecurringList() {
         <div class="rtitle">${escapeHtml(t.title)}</div>
         <div class="rmeta">${RECURRENCE_LABELS[t.recurrence] || t.recurrence}${dowText} · ${timeRangeLabel(t.start, t.end)} · started ${fmtDate(t.anchorDate)}</div>
       </div>
-      <div style="display:flex; gap:6px;">
+      <div style="display:flex; gap:6px; flex-wrap:wrap;">
+        <button class="stop-btn" style="border-color:var(--score); color:var(--score);" onclick="openEditSeriesModal('${t.id}')" title="Edit title, time, category, or days — updates already-generated copies too">Edit</button>
         <button class="stop-btn" onclick="stopTbRecurring('${t.id}')" title="Stops future copies — keeps everything already generated">Stop</button>
         <button class="stop-btn" style="border-color:var(--high); color:var(--high);" onclick="deleteEntireSeries('${t.id}', '${escapeHtml(t.title)}')" title="Removes the series AND every copy it has already generated">Delete All</button>
       </div>
@@ -3341,6 +3407,94 @@ function deleteEntireSeries(templateId, title) {
       renderTbRecurringList();
     }
   );
+}
+
+/* ---------- EDIT A REPEATING SERIES ---------- */
+let editingSeriesId = null;
+let esSelectedCategory = 'personal';
+
+function pickEsCategory(c) {
+  esSelectedCategory = c;
+  ['personal', 'imca', 'riivet', 'family'].forEach(x => {
+    const el = document.getElementById('esCat' + x[0].toUpperCase() + x.slice(1));
+    el.className = 'cat-btn' + (x === c ? ' active-' + c : '');
+  });
+}
+function populateEsTimeSelects() {
+  const s = document.getElementById('esStart');
+  const e = document.getElementById('esEnd');
+  s.innerHTML = '';
+  e.innerHTML = '';
+  for (let m = TB_START_MIN; m < TB_END_MIN; m += TB_SLOT_MIN) {
+    s.innerHTML += `<option value="${m}">${fmtMinutes(m)}</option>`;
+  }
+  for (let m = TB_START_MIN + TB_SLOT_MIN; m <= TB_END_MIN; m += TB_SLOT_MIN) {
+    e.innerHTML += `<option value="${m}">${fmtMinutes(m)}</option>`;
+  }
+}
+function openEditSeriesModal(templateId) {
+  const t = recurringTimeBlockTemplates.find(x => x.id === templateId);
+  if (!t) return;
+  editingSeriesId = templateId;
+  document.getElementById('esTitle').value = t.title;
+  document.getElementById('esNote').value = t.note || '';
+  pickEsCategory(t.category || 'personal');
+  populateEsTimeSelects();
+  document.getElementById('esStart').value = t.start;
+  document.getElementById('esEnd').value = t.end;
+
+  const showDow = (t.recurrence === 'weekly' || t.recurrence === 'biweekly');
+  document.getElementById('esDowWrap').style.display = showDow ? 'block' : 'none';
+  document.querySelectorAll('.es-dow-check').forEach(cb => {
+    cb.checked = (t.daysOfWeek || []).includes(parseInt(cb.value, 10));
+  });
+
+  document.getElementById('editSeriesModalOverlay').classList.remove('hidden');
+}
+function closeEditSeriesModal() {
+  document.getElementById('editSeriesModalOverlay').classList.add('hidden');
+  editingSeriesId = null;
+}
+function saveEditedSeries() {
+  const t = recurringTimeBlockTemplates.find(x => x.id === editingSeriesId);
+  if (!t) return;
+  const title = document.getElementById('esTitle').value.trim();
+  if (!title) { document.getElementById('esTitle').focus(); return; }
+  const note = document.getElementById('esNote').value.trim();
+  const start = parseInt(document.getElementById('esStart').value, 10);
+  const end = parseInt(document.getElementById('esEnd').value, 10);
+  if (end <= start) { alert('End time needs to be after the start time.'); return; }
+
+  let daysOfWeek = null;
+  if (t.recurrence === 'weekly' || t.recurrence === 'biweekly') {
+    daysOfWeek = Array.from(document.querySelectorAll('.es-dow-check:checked')).map(cb => parseInt(cb.value, 10));
+    if (daysOfWeek.length === 0) daysOfWeek = null;
+  }
+
+  t.title = title;
+  t.note = note;
+  t.category = esSelectedCategory;
+  t.start = start;
+  t.end = end;
+  if (daysOfWeek) t.daysOfWeek = daysOfWeek;
+  else delete t.daysOfWeek;
+
+  // Apply the same changes to every copy already generated from this series — not just future ones.
+  timeBlocks.forEach(b => {
+    if (b.recurringId === t.id) {
+      b.title = title;
+      b.note = note;
+      b.category = esSelectedCategory;
+      b.start = start;
+      b.end = end;
+    }
+  });
+
+  saveTbTemplates();
+  saveTimeBlocks();
+  closeEditSeriesModal();
+  renderTbRecurringList();
+  render();
 }
 
 /* ---------- TIME BLOCKING ---------- */
@@ -4043,7 +4197,7 @@ function resetSubmitForm() {
 }
 
 function anyModalOpen() {
-  const overlayIds = ['modalOverlay', 'tbRecurringModalOverlay', 'timeblockModalOverlay', 'recurringModalOverlay', 'labelModalOverlay', 'linkModalOverlay', 'projectModalOverlay', 'nameModalOverlay', 'manageTeamModalOverlay', 'submitCodeModalOverlay', 'exportModalOverlay', 'confirmCodeModalOverlay', 'availSettingsModalOverlay', 'availPromptOverlay'];
+  const overlayIds = ['modalOverlay', 'tbRecurringModalOverlay', 'timeblockModalOverlay', 'recurringModalOverlay', 'labelModalOverlay', 'linkModalOverlay', 'projectModalOverlay', 'nameModalOverlay', 'manageTeamModalOverlay', 'submitCodeModalOverlay', 'exportModalOverlay', 'confirmCodeModalOverlay', 'availSettingsModalOverlay', 'availPromptOverlay', 'editSeriesModalOverlay'];
   return overlayIds.some(id => {
     const el = document.getElementById(id);
     return el && !el.classList.contains('hidden');
@@ -4067,6 +4221,9 @@ document.getElementById('timeblockModalOverlay').addEventListener('click', (e) =
 });
 document.getElementById('tbRecurringModalOverlay').addEventListener('click', (e) => {
   if (e.target.id === 'tbRecurringModalOverlay') closeTbRecurringModal();
+});
+document.getElementById('editSeriesModalOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'editSeriesModalOverlay') closeEditSeriesModal();
 });
 document.getElementById('confirmCodeModalOverlay').addEventListener('click', (e) => {
   if (e.target.id === 'confirmCodeModalOverlay') closeConfirmCodeModal();
