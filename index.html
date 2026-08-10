@@ -22,6 +22,8 @@
   --low-dim: #1c3a37;
   --score: #bf5700;
   --good: #7ed957;
+  --family: #a06fe0;
+  --family-dim: #2e2140;
   --col-today: #e5484d;
   --col-tomorrow: #43c463;
   --col-upcoming: #3d8bf2;
@@ -1064,6 +1066,8 @@ html, body {
 .tb-hblock.tb-imca .tb-htitle { color: var(--high); }
 .tb-hblock.tb-riivet { background: #123018; border-color: var(--good); }
 .tb-hblock.tb-riivet .tb-htitle { color: var(--good); }
+.tb-hblock.tb-family { background: var(--family-dim); border-color: var(--family); }
+.tb-hblock.tb-family .tb-htitle { color: var(--family); }
 .tb-hblock.tb-done { background: var(--surface-2); border-color: var(--line); opacity: 0.6; }
 .tb-hblock.tb-done .tb-htitle { color: var(--muted); }
 .tb-hblock .tb-hnote {
@@ -1124,6 +1128,7 @@ html, body {
 .cat-btn.active-personal { background: var(--med-dim); border-color: var(--med); color: var(--med); }
 .cat-btn.active-imca { background: var(--high-dim); border-color: var(--high); color: var(--high); }
 .cat-btn.active-riivet { background: #123018; border-color: var(--good); color: var(--good); }
+.cat-btn.active-family { background: var(--family-dim); border-color: var(--family); color: var(--family); }
 .field-row { display: flex; gap: 10px; }
 .field-row .field { flex: 1; }
 .schedule-btn-wrap { margin-bottom: 14px; }
@@ -1663,6 +1668,7 @@ html, body {
         <button class="cat-btn" id="catPersonal" onclick="pickCategory('personal')">Personal</button>
         <button class="cat-btn" id="catImca" onclick="pickCategory('imca')">IMCA</button>
         <button class="cat-btn" id="catRiivet" onclick="pickCategory('riivet')">Riivet</button>
+        <button class="cat-btn" id="catFamily" onclick="pickCategory('family')">Family</button>
       </div>
     </div>
     <div class="field">
@@ -2600,13 +2606,17 @@ async function saveTimeBlocks() {
 // Publishes this person's schedule shape for the read-only view and the availability checker.
 // IMCA/Riivet blocks include the real title (business-related, OK to surface); Personal blocks
 // never include a title or note here — that data never leaves the private timeblocks collection.
+// Family blocks are excluded entirely: they never appear on the view-only page and are never
+// counted as "busy" when someone checks availability to request time — fully private tracking.
 async function syncBusyTimes() {
   try {
-    const busy = timeBlocks.map(b => {
-      const entry = { date: b.date, start: b.start, end: b.end, category: b.category };
-      if (b.category !== 'personal') entry.title = b.title;
-      return entry;
-    });
+    const busy = timeBlocks
+      .filter(b => b.category !== 'family')
+      .map(b => {
+        const entry = { date: b.date, start: b.start, end: b.end, category: b.category };
+        if (b.category !== 'personal') entry.title = b.title;
+        return entry;
+      });
     await dbSet(`busyTimes/${currentUid}`, busy, true);
   } catch (e) { console.error('sync busy times failed', e); }
 }
@@ -3244,7 +3254,7 @@ function toggleTbTaskDue() {
 }
 function pickCategory(c) {
   selectedCategory = c;
-  ['personal', 'imca', 'riivet'].forEach(x => {
+  ['personal', 'imca', 'riivet', 'family'].forEach(x => {
     const el = document.getElementById('cat' + x[0].toUpperCase() + x.slice(1));
     el.className = 'cat-btn' + (x === c ? ' active-' + c : '');
   });
