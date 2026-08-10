@@ -1547,6 +1547,15 @@ html, body {
       </div>
     </div>
     <div class="field">
+      <label>Category &nbsp;<span style="color:var(--muted); font-weight:400; text-transform:none; letter-spacing:0;">(Personal & Family stay private — never shown on the view-only page)</span></label>
+      <div class="category-picks">
+        <button class="cat-btn" id="taskCatPersonal" onclick="pickTaskCategory('personal')">Personal</button>
+        <button class="cat-btn" id="taskCatImca" onclick="pickTaskCategory('imca')">IMCA</button>
+        <button class="cat-btn" id="taskCatRiivet" onclick="pickTaskCategory('riivet')">Riivet</button>
+        <button class="cat-btn" id="taskCatFamily" onclick="pickTaskCategory('family')">Family</button>
+      </div>
+    </div>
+    <div class="field">
       <label>Due Date &nbsp;<span style="color:var(--muted); font-weight:400; text-transform:none; letter-spacing:0;">(first occurrence, if repeating)</span></label>
       <input type="date" id="inpDue">
       <div class="checkbox-field" style="margin-top:8px;">
@@ -1926,6 +1935,7 @@ let timeBlocks = [];
 let recurringTimeBlockTemplates = [];
 let stats = { totalPoints: 0, dailyScore: 0, lastScoreDate: null, streak: 0, lastActiveDate: null };
 let selectedPriority = 'medium';
+let selectedTaskCategory = 'personal';
 let selectedRepeat = 'none';
 let selectedTbRepeat = 'none';
 let labelPriority = 'medium';
@@ -2515,7 +2525,10 @@ function renderReadOnlyTasks(roTasks) {
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   })();
 
-  roTasks.forEach(t => {
+  // Personal and Family tasks never appear here at all — same private boundary as time blocks.
+  const visibleTasks = roTasks.filter(t => t.category !== 'personal' && t.category !== 'family');
+
+  visibleTasks.forEach(t => {
     if (t.completed) {
       // Only keep it around for 7 days after completion — older ones just quietly age out.
       if (t.completedAt && t.completedAt >= sevenDaysAgo) completedRecent.push(t);
@@ -2528,6 +2541,11 @@ function renderReadOnlyTasks(roTasks) {
   buckets.today.sort((a, b) => (a.due || '').localeCompare(b.due || ''));
   buckets.upcoming.sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999'));
   completedRecent.sort((a, b) => (b.completedAt || '').localeCompare(a.completedAt || ''));
+
+  function catTag(t) {
+    const isRiivet = t.category === 'riivet';
+    return `<span style="color:${isRiivet ? 'var(--good)' : 'var(--high)'}; font-size:10px; font-weight:700; margin-right:6px;">${isRiivet ? 'RIIVET' : 'IMCA'}</span>`;
+  }
 
   function rowsFor(list) {
     if (list.length === 0) return `<div class="ro-empty">Nothing here.</div>`;
@@ -2543,7 +2561,7 @@ function renderReadOnlyTasks(roTasks) {
         suffix = ' – IMPORTANT';
       }
       return `<div class="ro-task-row ${cls}">
-        <span>${escapeHtml(t.title)}${suffix}</span>
+        <span>${catTag(t)}${escapeHtml(t.title)}${suffix}</span>
         ${t.due ? `<span class="ro-due">${fmtDate(t.due)}</span>` : `<span class="ro-due">Someday</span>`}
       </div>`;
     }).join('');
@@ -2556,7 +2574,7 @@ function renderReadOnlyTasks(roTasks) {
   compArea.innerHTML = completedRecent.length === 0
     ? `<div class="ro-empty">Nothing completed in the last 7 days.</div>`
     : completedRecent.map(t => `<div class="ro-task-row ro-completed-row">
-        <span>${escapeHtml(t.title)}</span>
+        <span>${catTag(t)}${escapeHtml(t.title)}</span>
         <span class="ro-due">${fmtDate(t.completedAt)}</span>
       </div>`).join('');
 }
@@ -2608,7 +2626,10 @@ function renderReadOnlyTimeblocks() {
     // Personal blocks only ever show the generic category label — the real title/note never
     // even reaches this public mirror. IMCA/Riivet blocks show the real title when there's one.
     const label = (b.category !== 'personal' && b.title) ? b.title : (RO_CATEGORY_LABELS[b.category] || 'Blocked');
-    const tooltip = `${label} (${timeRangeLabel(b.start, b.end)})`;
+    const catName = RO_CATEGORY_LABELS[b.category] || 'Blocked';
+    const tooltip = (b.category !== 'personal' && b.title)
+      ? `${catName} — ${label} (${timeRangeLabel(b.start, b.end)})`
+      : `${label} (${timeRangeLabel(b.start, b.end)})`;
     blocksHtml += `<div class="ro-hblock ro-cat-block tb-${b.category || 'personal'}" style="grid-column: ${startSlot + 1} / ${endSlot + 1};" title="${escapeHtml(tooltip)}">${escapeHtml(label)}</div>`;
   });
 
@@ -2668,7 +2689,8 @@ function generateRecurringInstances() {
     if (alreadyExists) return;
     tasks.push({
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-      title: template.title, sub: template.sub, priority: template.priority, due: todayKey,
+      title: template.title, sub: template.sub, priority: template.priority,
+      category: template.category || 'imca', due: todayKey,
       completed: false, completedAt: null, recurringId: template.id
     });
     changed = true;
@@ -2745,7 +2767,11 @@ async function syncBusyTimes() {
 // deliberately (unlike the operator's own board) so progress stays visible there over time.
 async function syncPublicTasks() {
   try {
-    const pub = tasks.map(t => ({ title: t.title, due: t.due || null, priority: t.priority, completed: !!t.completed, completedAt: t.completedAt || null }));
+    const pub = tasks.map(t => ({
+      title: t.title, due: t.due || null, priority: t.priority,
+      completed: !!t.completed, completedAt: t.completedAt || null,
+      category: t.category || 'imca'
+    }));
     await dbSet(`publicTasks/${currentUid}`, pub, true);
   } catch (e) { console.error('sync public tasks failed', e); }
 }
@@ -2766,6 +2792,9 @@ function openModal(id) {
     document.getElementById('inpNoDue').checked = !task.due;
     document.getElementById('inpDue').disabled = !task.due;
     pickPriority(task.priority);
+    // Legacy tasks (created before categories existed) default to IMCA here — a visible
+    // category — so simply opening and re-saving an old task never silently hides it.
+    pickTaskCategory(task.category || 'imca');
     document.getElementById('repeatFieldWrap').style.display = 'none';
     document.getElementById('taskSaveBtn').textContent = 'Save Changes';
     document.getElementById('modalDeleteWrap').style.display = 'flex';
@@ -2785,6 +2814,7 @@ function openModal(id) {
     document.getElementById('inpNoDue').checked = false;
     document.getElementById('inpDue').disabled = false;
     pickPriority('medium');
+    pickTaskCategory('personal');
     pickRepeat('none');
     document.getElementById('repeatFieldWrap').style.display = 'block';
     document.getElementById('taskSaveBtn').textContent = 'Add to Board';
@@ -2812,6 +2842,13 @@ function pickPriority(p) {
     el.className = 'pp-btn' + (x === p ? ' active-' + p : '');
   });
 }
+function pickTaskCategory(c) {
+  selectedTaskCategory = c;
+  ['personal', 'imca', 'riivet', 'family'].forEach(x => {
+    const el = document.getElementById('taskCat' + x[0].toUpperCase() + x.slice(1));
+    el.className = 'cat-btn' + (x === c ? ' active-' + c : '');
+  });
+}
 function pickRepeat(r) {
   selectedRepeat = r;
   ['none','daily','weekly','biweekly','monthly','twicemonthly'].forEach(x => {
@@ -2836,6 +2873,7 @@ function saveTask() {
       task.title = title;
       task.sub = sub;
       task.priority = selectedPriority;
+      task.category = selectedTaskCategory;
       task.due = due;
       saveTasks();
     }
@@ -2848,7 +2886,7 @@ function saveTask() {
   if (selectedRepeat !== 'none') {
     recurringId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     recurringTemplates.push({
-      id: recurringId, title, sub, priority: selectedPriority,
+      id: recurringId, title, sub, priority: selectedPriority, category: selectedTaskCategory,
       recurrence: selectedRepeat, anchorDate: due || todayStr()
     });
     saveTemplates();
@@ -2856,7 +2894,7 @@ function saveTask() {
 
   tasks.push({
     id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
-    title, sub, priority: selectedPriority, due,
+    title, sub, priority: selectedPriority, category: selectedTaskCategory, due,
     completed: false, completedAt: null,
     ...(recurringId ? { recurringId } : {})
   });
