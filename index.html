@@ -133,14 +133,19 @@ html, body {
   margin: 3px 1px;
   border-radius: 5px;
   overflow: hidden;
-  display: flex;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   align-items: center;
+  text-align: center;
   justify-content: center;
-  font-size: 9.5px;
+  font-size: 9px;
+  line-height: 1.15;
   font-weight: 600;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  padding: 0 3px;
+  white-space: normal;
+  word-break: break-word;
+  padding: 2px 3px;
+  cursor: default;
 }
 
 /* ---------- AUTH / LOGIN SCREEN ---------- */
@@ -838,6 +843,39 @@ html, body {
 }
 .dow-check:has(input:checked) { border-color: var(--score); background: var(--med-dim); }
 
+.avail-day-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.avail-day-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  color: var(--chalk);
+  cursor: pointer;
+}
+.avail-day-check input[type="checkbox"] {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--score);
+  cursor: pointer;
+}
+.avail-day-time {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--chalk);
+  padding: 6px 9px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  color-scheme: dark;
+}
+.avail-day-time:disabled { opacity: 0.35; }
+
 .task-repeat-badge {
   font-size: 10.5px;
   color: var(--score);
@@ -1456,10 +1494,7 @@ html, body {
     <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
       <div>
         <h1 style="margin-bottom:2px;" id="roPageTitle">Workload Overview</h1>
-        <div style="display:flex; align-items:center; gap:10px;">
-          <div class="sub-lbl" style="margin:0;">view only</div>
-          <span id="roAvailBadge" style="display:none; font-size:12px; font-weight:600; padding:3px 10px; border-radius:20px;"></span>
-        </div>
+        <span id="roAvailBadge" style="display:inline-block; font-size:12px; font-weight:600; padding:3px 10px; border-radius:20px; background:var(--surface-2); color:var(--muted); border:1px solid var(--line);">Status unknown</span>
       </div>
       <a id="roSubmitLink" class="add-btn" href="?submit=1" style="text-decoration:none; display:inline-block; white-space:nowrap;">+ Submit Request</a>
     </div>
@@ -1560,22 +1595,10 @@ html, body {
 <div class="overlay hidden" id="availSettingsModalOverlay">
   <div class="modal">
     <h2>Availability Settings</h2>
-    <div style="color:var(--muted); font-size:13px; margin-bottom:16px;">Each day at this time, you'll get a prompt asking if you're available. You'll stay marked "Unavailable" until you answer it — even if you were marked Available the day before.</div>
+    <div style="color:var(--muted); font-size:13px; margin-bottom:16px;">Turn on a day and pick its own time — each day can trigger at a different time, or not at all. Whenever you're marked Unavailable (auto or manual), you'll get a follow-up prompt exactly 1 hour later — handy for lunch breaks, so it reminds you to flip back once you're back.</div>
     <div class="field">
-      <label>Prompt Time</label>
-      <input type="time" id="availPromptTime" value="07:00">
-    </div>
-    <div class="field">
-      <label>On which days?</label>
-      <div class="dow-picks">
-        <label class="dow-check"><input type="checkbox" class="avail-dow-check" value="0"> Sun</label>
-        <label class="dow-check"><input type="checkbox" class="avail-dow-check" value="1"> M</label>
-        <label class="dow-check"><input type="checkbox" class="avail-dow-check" value="2"> Tu</label>
-        <label class="dow-check"><input type="checkbox" class="avail-dow-check" value="3"> W</label>
-        <label class="dow-check"><input type="checkbox" class="avail-dow-check" value="4"> Th</label>
-        <label class="dow-check"><input type="checkbox" class="avail-dow-check" value="5"> F</label>
-        <label class="dow-check"><input type="checkbox" class="avail-dow-check" value="6"> Sat</label>
-      </div>
+      <label>Auto-Unavailable Schedule</label>
+      <div id="availPerDayRows"></div>
     </div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeAvailabilitySettings()">Cancel</button>
@@ -2585,7 +2608,8 @@ function renderReadOnlyTimeblocks() {
     // Personal blocks only ever show the generic category label — the real title/note never
     // even reaches this public mirror. IMCA/Riivet blocks show the real title when there's one.
     const label = (b.category !== 'personal' && b.title) ? b.title : (RO_CATEGORY_LABELS[b.category] || 'Blocked');
-    blocksHtml += `<div class="ro-hblock ro-cat-block tb-${b.category || 'personal'}" style="grid-column: ${startSlot + 1} / ${endSlot + 1};" title="${escapeHtml(label)}">${escapeHtml(label)}</div>`;
+    const tooltip = `${label} (${timeRangeLabel(b.start, b.end)})`;
+    blocksHtml += `<div class="ro-hblock ro-cat-block tb-${b.category || 'personal'}" style="grid-column: ${startSlot + 1} / ${endSlot + 1};" title="${escapeHtml(tooltip)}">${escapeHtml(label)}</div>`;
   });
 
   area.innerHTML = `<div style="overflow-x:auto; -webkit-overflow-scrolling:touch;">
@@ -3529,33 +3553,46 @@ function deleteFromTbModal() {
 
 /* ---------- AVAILABILITY (available/busy status shown on the view-only page) ---------- */
 const DEFAULT_AVAILABILITY = {
-  manualStatus: 'unavailable',   // 'available' | 'unavailable' — the fail-safe default is unavailable
-  lastPromptAnsweredDate: null,  // 'YYYY-MM-DD' — the day the daily prompt was last answered
-  promptTime: '07:00',
-  promptDays: [0, 1, 2, 3, 4, 5, 6] // default: every day
+  manualStatus: 'unavailable', // 'available' | 'unavailable' — the fail-safe default is unavailable
+  lastPromptAnsweredDate: null, // 'YYYY-MM-DD' — the day the daily auto-trigger prompt was last answered
+  unavailableSince: null, // timestamp (ms) of when the current stretch of "unavailable" started
+  perDaySchedule: {
+    0: { enabled: false, time: '07:00' },
+    1: { enabled: true, time: '07:00' },
+    2: { enabled: true, time: '07:00' },
+    3: { enabled: true, time: '07:00' },
+    4: { enabled: true, time: '07:00' },
+    5: { enabled: true, time: '07:00' },
+    6: { enabled: false, time: '07:00' }
+  }
 };
 let availabilityState = Object.assign({}, DEFAULT_AVAILABILITY);
+const AVAIL_DOW_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function parseTimeToMinutes(hhmm) {
   const [h, m] = (hhmm || '07:00').split(':').map(n => parseInt(n, 10));
   return (h || 0) * 60 + (m || 0);
+}
+function getTodaySchedule() {
+  const dow = new Date().getDay();
+  return (availabilityState.perDaySchedule || {})[dow] || { enabled: false, time: '07:00' };
 }
 async function saveAvailabilityState() {
   try { await dbSet('availability', availabilityState); }
   catch (e) { console.error('save availability failed', e); }
 }
 // Currently-active time block always wins — you can't be "available" while literally in a scheduled block.
-// Otherwise, if today's prompt hasn't been answered yet, the fail-safe default is unavailable.
+// Otherwise, if today's auto-unavailable trigger has fired and hasn't been answered yet, that's the fail-safe.
 function computeEffectiveAvailability() {
   const now = new Date();
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
   const today = todayStr();
   const inBlock = timeBlocks.some(b => b.date === today && b.start <= nowMinutes && nowMinutes < b.end);
   if (inBlock) return 'busy';
-  const dow = now.getDay();
-  const promptDue = (availabilityState.promptDays || []).includes(dow) && nowMinutes >= parseTimeToMinutes(availabilityState.promptTime);
+  const sched = getTodaySchedule();
+  const triggerDue = sched.enabled && nowMinutes >= parseTimeToMinutes(sched.time);
   const answeredToday = availabilityState.lastPromptAnsweredDate === today;
-  if (promptDue && !answeredToday) return 'unavailable';
+  if (triggerDue && !answeredToday) return 'unavailable';
   return availabilityState.manualStatus === 'available' ? 'available' : 'unavailable';
 }
 async function publishAvailability() {
@@ -3580,45 +3617,72 @@ function renderAvailabilityBadge() {
   }
 }
 function toggleAvailability() {
-  availabilityState.manualStatus = availabilityState.manualStatus === 'available' ? 'unavailable' : 'available';
-  availabilityState.lastPromptAnsweredDate = todayStr(); // manually toggling counts as answering today's prompt too
+  const newStatus = availabilityState.manualStatus === 'available' ? 'unavailable' : 'available';
+  availabilityState.manualStatus = newStatus;
+  availabilityState.lastPromptAnsweredDate = todayStr();
+  // starts (or clears) the 1-hour follow-up countdown, same as answering the prompt does
+  availabilityState.unavailableSince = newStatus === 'unavailable' ? Date.now() : null;
   saveAvailabilityState();
   publishAvailability();
 }
+// Two independent triggers for the same prompt: the per-day scheduled time (fail-safe until
+// answered), and a one-hour-later nudge any time you're marked unavailable — covers lunch
+// breaks and similar: step away, and an hour later it reminds you to flip back if you're back.
 function checkAvailabilityPrompt() {
   const overlay = document.getElementById('availPromptOverlay');
   if (!overlay || !overlay.classList.contains('hidden')) return; // already showing, or not on a page that has it
   const now = new Date();
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
   const today = todayStr();
-  const dow = now.getDay();
-  if (!(availabilityState.promptDays || []).includes(dow)) return;
-  if (nowMinutes < parseTimeToMinutes(availabilityState.promptTime)) return;
-  if (availabilityState.lastPromptAnsweredDate === today) return;
-  overlay.classList.remove('hidden');
+  const sched = getTodaySchedule();
+
+  if (sched.enabled && nowMinutes >= parseTimeToMinutes(sched.time) && availabilityState.lastPromptAnsweredDate !== today) {
+    if (!availabilityState.unavailableSince) availabilityState.unavailableSince = Date.now();
+    overlay.classList.remove('hidden');
+    return;
+  }
+  if (availabilityState.manualStatus !== 'available' && availabilityState.unavailableSince &&
+      (Date.now() - availabilityState.unavailableSince) >= 60 * 60 * 1000) {
+    overlay.classList.remove('hidden');
+  }
 }
 function answerAvailabilityPrompt(status) {
   availabilityState.manualStatus = status;
   availabilityState.lastPromptAnsweredDate = todayStr();
+  // Answering "still unavailable" restarts the 1-hour clock for the next nudge; answering
+  // "available" clears it entirely.
+  availabilityState.unavailableSince = status === 'unavailable' ? Date.now() : null;
   saveAvailabilityState();
   publishAvailability();
   document.getElementById('availPromptOverlay').classList.add('hidden');
 }
 function openAvailabilitySettings() {
-  document.getElementById('availPromptTime').value = availabilityState.promptTime || '07:00';
-  document.querySelectorAll('.avail-dow-check').forEach(cb => {
-    cb.checked = (availabilityState.promptDays || []).includes(parseInt(cb.value, 10));
-  });
+  const rowsHtml = AVAIL_DOW_LABELS.map((label, i) => {
+    const s = (availabilityState.perDaySchedule || {})[i] || { enabled: false, time: '07:00' };
+    return `<div class="avail-day-row">
+      <label class="avail-day-check"><input type="checkbox" class="avail-day-enable" data-day="${i}" ${s.enabled ? 'checked' : ''} onchange="toggleAvailDayRow(${i})"> ${label}</label>
+      <input type="time" class="avail-day-time" data-day="${i}" value="${s.time || '07:00'}" ${s.enabled ? '' : 'disabled'}>
+    </div>`;
+  }).join('');
+  document.getElementById('availPerDayRows').innerHTML = rowsHtml;
   document.getElementById('availSettingsModalOverlay').classList.remove('hidden');
+}
+function toggleAvailDayRow(day) {
+  const cb = document.querySelector(`.avail-day-enable[data-day="${day}"]`);
+  const timeInput = document.querySelector(`.avail-day-time[data-day="${day}"]`);
+  if (timeInput) timeInput.disabled = !cb.checked;
 }
 function closeAvailabilitySettings() {
   document.getElementById('availSettingsModalOverlay').classList.add('hidden');
 }
 function saveAvailabilitySettings() {
-  const time = document.getElementById('availPromptTime').value || '07:00';
-  const days = Array.from(document.querySelectorAll('.avail-dow-check:checked')).map(cb => parseInt(cb.value, 10));
-  availabilityState.promptTime = time;
-  availabilityState.promptDays = days;
+  const perDay = {};
+  document.querySelectorAll('.avail-day-enable').forEach(cb => {
+    const day = parseInt(cb.dataset.day, 10);
+    const timeInput = document.querySelector(`.avail-day-time[data-day="${day}"]`);
+    perDay[day] = { enabled: cb.checked, time: (timeInput && timeInput.value) || '07:00' };
+  });
+  availabilityState.perDaySchedule = perDay;
   saveAvailabilityState();
   publishAvailability();
   closeAvailabilitySettings();
