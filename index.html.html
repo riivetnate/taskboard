@@ -1,0 +1,3839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>The Board</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --bg: #0d0d0d;
+  --surface: #1a1a1a;
+  --surface-2: #242424;
+  --line: #3a3a3a;
+  --chalk: #f2f0e9;
+  --muted: #999999;
+  --high: #ff5a36;
+  --high-dim: #4a281f;
+  --med: #ffb627;
+  --med-dim: #4a3a1a;
+  --low: #2ec4b6;
+  --low-dim: #1c3a37;
+  --score: #bf5700;
+  --good: #7ed957;
+  --col-today: #e5484d;
+  --col-tomorrow: #43c463;
+  --col-upcoming: #3d8bf2;
+  --radius: 10px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--chalk);
+  font-family: 'Inter', sans-serif;
+  min-height: 100vh;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.wrap {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 14px 24px 60px;
+}
+
+/* ---------- DAILY QUOTE ---------- */
+.quote-banner {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--score);
+  border-radius: var(--radius);
+  padding: 12px 20px;
+  margin-bottom: 12px;
+}
+.quote-text {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 500;
+  font-size: 17px;
+  letter-spacing: 0.2px;
+  color: var(--chalk);
+  line-height: 1.35;
+}
+.quote-author {
+  color: var(--score);
+  font-size: 12.5px;
+  font-weight: 600;
+  margin-top: 6px;
+}
+.quote-attribution {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 8px;
+  opacity: 0.7;
+}
+.quote-attribution a { color: var(--muted); text-decoration: underline; }
+
+/* ---------- READ-ONLY WORKLOAD VIEW ---------- */
+.ro-section-label {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-size: 13px;
+  color: var(--muted);
+  margin: 22px 0 8px;
+}
+.ro-task-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  background: var(--surface-2);
+  border-radius: 7px;
+  margin-bottom: 6px;
+  font-size: 13.5px;
+}
+.ro-task-row .ro-due { color: var(--muted); font-size: 11.5px; white-space: nowrap; margin-left: 10px; }
+.ro-empty { color: var(--muted); font-size: 13px; padding: 4px 2px 2px; }
+.ro-task-row.ro-normal { background: rgba(61, 139, 242, 0.14); border: 1px solid rgba(61, 139, 242, 0.4); }
+.ro-task-row.ro-important { background: rgba(224, 138, 52, 0.16); border: 1px solid rgba(224, 138, 52, 0.45); }
+.ro-task-row.ro-important span:first-child { color: #e08a34; font-weight: 600; }
+.ro-task-row.ro-pastdue { background: rgba(229, 72, 77, 0.16); border: 1px solid rgba(229, 72, 77, 0.45); }
+.ro-task-row.ro-pastdue span:first-child { color: var(--high); font-weight: 600; }
+.ro-task-row.ro-done { background: rgba(67, 196, 99, 0.14); border: 1px solid rgba(67, 196, 99, 0.4); }
+.ro-task-row.ro-done span:first-child { color: var(--good); text-decoration: line-through; }
+.ro-cat-block {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--chalk);
+}
+.ro-cat-block.tb-personal { background: var(--med-dim); border: 1px solid var(--med); color: var(--med); }
+.ro-cat-block.tb-imca { background: var(--high-dim); border: 1px solid var(--high); color: var(--high); }
+.ro-cat-block.tb-riivet { background: #123018; border: 1px solid var(--good); color: var(--good); }
+/* condensed whole-day timeline, sized to show the full 8am-midnight span without scrolling */
+.ro-hlabels { display: grid; height: 20px; align-items: center; }
+.ro-hlabels .ro-hour-lbl { font-size: 9.5px; color: var(--muted); border-left: 1px solid var(--line); padding-left: 3px; height: 100%; display: flex; align-items: center; }
+.ro-hgrid { position: relative; display: grid; height: 60px; border-top: 1px solid var(--line); }
+.ro-hgrid .ro-vline { grid-row: 1; border-left: 1px solid var(--line); }
+.ro-hgrid .ro-vline.half { border-left: 1px dashed rgba(255,255,255,0.06); }
+.ro-hblock {
+  grid-row: 1;
+  margin: 3px 1px;
+  border-radius: 5px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding: 0 3px;
+}
+
+/* ---------- AUTH / LOGIN SCREEN ---------- */
+.auth-screen {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+  padding: 20px;
+}
+.auth-box {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 32px 28px;
+  width: 100%;
+  max-width: 360px;
+}
+.auth-title {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  font-size: 26px;
+  letter-spacing: 2px;
+  color: var(--chalk);
+  text-align: center;
+}
+.auth-sub {
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+  margin: 6px 0 22px;
+}
+.auth-error {
+  color: var(--high);
+  font-size: 13px;
+  margin-bottom: 14px;
+  text-align: center;
+}
+.user-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-bottom: 6px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.user-bar button {
+  background: none;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* ---------- TEAM PROJECTS ---------- */
+.team-section { margin-bottom: 16px; }
+.quick-links-box {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  margin-bottom: 14px;
+}
+.quick-links-label {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.quick-links-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.team-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.team-head .name {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-size: 15px;
+  color: var(--chalk);
+}
+.project-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  margin-bottom: 12px;
+}
+.project-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.project-title { font-weight: 600; color: var(--chalk); font-size: 15px; }
+.project-progress { color: var(--score); font-size: 12.5px; font-weight: 600; }
+.subjob-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+}
+.subjob-title { font-size: 13.5px; color: var(--chalk); }
+.subjob-title.done { color: var(--muted); text-decoration: line-through; }
+.subjob-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.subjob-actions button {
+  font-size: 11.5px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--chalk);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.subjob-actions button.claim-btn { border-color: var(--score); color: var(--score); }
+.subjob-actions button.complete-btn { border-color: var(--good); color: var(--good); }
+
+/* ---------- SCOREBOARD HEADER ---------- */
+.scoreboard {
+  background: linear-gradient(180deg, var(--surface-2), var(--surface));
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.35);
+}
+
+.brand {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.brand .title {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  font-size: 22px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.brand .date {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.stats-row {
+  display: flex;
+  gap: 28px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.stat {
+  text-align: center;
+  min-width: 74px;
+}
+.stat .num {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  font-size: 34px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  transition: transform 0.15s ease;
+}
+.stat .lbl {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.stat.score .num { color: var(--score); }
+.stat.streak .num { color: var(--high); }
+.stat.level .num { color: var(--low); }
+
+.pulse { animation: pulse-up 0.4s ease; }
+@keyframes pulse-up {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+
+.level-bar-wrap {
+  min-width: 140px;
+}
+.level-bar-track {
+  width: 100%;
+  height: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  overflow: hidden;
+  margin-top: 6px;
+}
+.level-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--low), #4dd8c9);
+  transition: width 0.4s ease;
+}
+
+/* ---------- ADD TASK BAR ---------- */
+.add-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 18px;
+}
+.add-btn {
+  background: var(--score);
+  color: #fff3e8;
+  border: none;
+  font-family: 'Oswald', sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 13px 26px;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 3px 0 #c9a52a;
+}
+.add-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #c9a52a; }
+
+/* ---------- LANES ---------- */
+.lanes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+@media (max-width: 900px) {
+  .lanes { grid-template-columns: 1fr; }
+  .scoreboard { flex-direction: column; align-items: flex-start; }
+}
+
+.lane {
+  background: var(--surface);
+  border-radius: var(--radius);
+  border-top: 4px solid var(--line);
+  min-height: 160px;
+  padding: 14px;
+}
+.lane.today { border-top-color: var(--col-today); }
+.lane.tomorrow { border-top-color: var(--col-tomorrow); }
+.lane.upcoming { border-top-color: var(--col-upcoming); }
+
+.lane-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding: 0 4px;
+}
+.lane-head .name {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-size: 15px;
+}
+.lane.today .name { color: var(--col-today); }
+.lane.tomorrow .name { color: var(--col-tomorrow); }
+.lane.upcoming .name { color: var(--col-upcoming); }
+.lane-head .count {
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 12px;
+  padding: 2px 9px;
+  border-radius: 20px;
+}
+
+.empty-lane {
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+  padding: 30px 10px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+}
+
+/* ---------- TASK CARD ---------- */
+.card {
+  background: var(--surface-2);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  border: 1px solid var(--line);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.card.overdue { border-color: var(--high); }
+.card-done {
+  padding: 10px 14px;
+  opacity: 0.6;
+  cursor: pointer;
+}
+.card-done .done-title {
+  color: var(--muted);
+  text-decoration: line-through;
+  font-size: 14px;
+  font-weight: 500;
+  word-break: break-word;
+}
+
+.check {
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  border-radius: 50%;
+  border: 2px solid var(--muted);
+  background: transparent;
+  cursor: pointer;
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+  font-size: 14px;
+}
+.check.pri-high { border-color: var(--high); }
+.check.pri-medium { border-color: var(--med); }
+.check.pri-low { border-color: var(--low); }
+.check:active { transform: scale(0.9); }
+
+.card-body { flex: 1; min-width: 0; }
+.card-title {
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 1.3;
+  word-break: break-word;
+}
+.card-sub {
+  color: var(--muted);
+  font-size: 12.5px;
+  margin-top: 3px;
+  word-break: break-word;
+}
+.card-meta {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.badge {
+  font-size: 10.5px;
+  padding: 3px 8px;
+  border-radius: 20px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+.badge.due { background: var(--surface); color: var(--muted); border: 1px solid var(--line); }
+.badge.overdue-badge { background: var(--high-dim); color: var(--high); }
+.badge.today-badge { background: var(--med-dim); color: var(--med); }
+.badge.pri-high { background: var(--high-dim); color: var(--high); }
+.badge.pri-medium { background: var(--med-dim); color: var(--med); }
+.badge.pri-low { background: var(--low-dim); color: var(--low); }
+.del-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+/* ---------- CONDENSED UPCOMING ROW ---------- */
+.upcoming-row {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+.upcoming-row-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  cursor: pointer;
+}
+.upcoming-row-head .u-title {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  font-size: 14px;
+  word-break: break-word;
+}
+.upcoming-row-head .u-due {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.upcoming-row-head .u-due.overdue-text {
+  color: var(--high);
+  font-weight: 700;
+}
+.upcoming-row-head .chevron {
+  color: var(--muted);
+  font-size: 11px;
+  transition: transform 0.2s ease;
+}
+.upcoming-row.open .chevron { transform: rotate(180deg); }
+.upcoming-detail {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.25s ease;
+  padding: 0 12px;
+}
+.upcoming-row.open .upcoming-detail {
+  max-height: 260px;
+  padding: 0 12px 12px;
+}
+.upcoming-detail .detail-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  align-items: center;
+}
+.upcoming-detail .del-btn-full {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+  padding: 7px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+
+/* ---------- COMPLETED SECTION ---------- */
+.completed-section {
+  margin-top: 28px;
+}
+.completed-head {
+  font-family: 'Oswald', sans-serif;
+  font-size: 14px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--good);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.completed-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.done-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 8px 14px;
+  font-size: 13px;
+  color: var(--muted);
+  text-decoration: line-through;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.done-card:active { transform: scale(0.96); }
+.done-card .pts { color: var(--good); text-decoration: none; font-weight: 600; }
+.done-card .undo-hint { text-decoration: none; color: var(--muted); font-size: 11px; opacity: 0.7; }
+
+/* ---------- MODAL ---------- */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 20px;
+}
+.hidden { display: none !important; }
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 26px;
+  width: 100%;
+  max-width: 420px;
+}
+.modal h2 {
+  font-family: 'Oswald', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 0 0 18px;
+  font-size: 20px;
+}
+.field { margin-bottom: 14px; }
+.field label {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.field input, .field select, .field textarea {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--chalk);
+  padding: 11px 12px;
+  border-radius: 7px;
+  font-size: 15px;
+  font-family: 'Inter', sans-serif;
+}
+.field textarea { resize: none; min-height: 50px; }
+.priority-picks { display: flex; gap: 8px; }
+.pp-btn {
+  flex: 1;
+  padding: 10px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+.pp-btn.active-high { background: var(--high-dim); border-color: var(--high); color: var(--high); }
+.pp-btn.active-medium { background: var(--med-dim); border-color: var(--med); color: var(--med); }
+.pp-btn.active-low { background: var(--low-dim); border-color: var(--low); color: var(--low); }
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+.modal-actions button {
+  flex: 1;
+  padding: 12px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  border: none;
+  cursor: pointer;
+}
+.btn-cancel { background: var(--surface-2); color: var(--muted); }
+.btn-save { background: var(--score); color: #fff3e8; }
+
+.toast {
+  position: fixed;
+  bottom: 26px;
+  left: 50%;
+  transform: translateX(-50%) translateY(0);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 40px;
+  padding: 12px 10px 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 14px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+  z-index: 60;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.toast.hidden { opacity: 0; pointer-events: none; transform: translateX(-50%) translateY(20px); }
+.toast .toast-undo-btn {
+  background: var(--score);
+  color: #fff3e8;
+  border: none;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 8px 16px;
+  border-radius: 30px;
+  cursor: pointer;
+}
+
+.loading-msg {
+  text-align: center;
+  color: var(--muted);
+  padding: 60px 0;
+  font-size: 14px;
+}
+
+/* ---------- PENDING QUEUE ---------- */
+.pending-section { margin-bottom: 20px; }
+.pending-head {
+  font-family: 'Oswald', sans-serif;
+  font-size: 14px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--score);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pending-list { display: flex; flex-direction: column; gap: 10px; }
+.pending-card {
+  background: var(--surface);
+  border: 1px solid var(--score);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+.from-badge {
+  background: var(--surface-2);
+  color: var(--score);
+  font-size: 10.5px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-weight: 600;
+  display: inline-block;
+  margin-bottom: 5px;
+}
+.task-from {
+  font-size: 10.5px;
+  color: var(--score);
+  font-weight: 600;
+  margin-top: 4px;
+}
+.pending-actions { display: flex; flex-direction: column; gap: 6px; }
+.pending-actions button {
+  padding: 9px 16px;
+  border-radius: 6px;
+  border: none;
+  font-weight: 600;
+  font-size: 12.5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-accept { background: var(--good); color: #123018; }
+.btn-reject { background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
+
+.copy-link-btn {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12.5px;
+  padding: 12px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.repeat-picks { display: flex; flex-wrap: wrap; gap: 7px; }
+.repeat-picks .pp-btn { flex: 1 1 28%; font-size: 11.5px; padding: 9px 6px; }
+.dow-picks { display: flex; gap: 6px; flex-wrap: wrap; }
+.dow-check {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--chalk);
+  cursor: pointer;
+  flex: 1 1 auto;
+  justify-content: center;
+}
+.dow-check input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--score);
+  cursor: pointer;
+}
+.dow-check:has(input:checked) { border-color: var(--score); background: var(--med-dim); }
+
+.task-repeat-badge {
+  font-size: 10.5px;
+  color: var(--score);
+  font-weight: 600;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.recurring-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+.recurring-item .rtitle { font-weight: 600; font-size: 14px; }
+.recurring-item .rmeta { color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+.stop-btn {
+  background: var(--high-dim);
+  color: var(--high);
+  border: none;
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.no-recurring { color: var(--muted); font-size: 13px; text-align: center; padding: 20px 0; }
+
+/* ---------- TIME BLOCKING ---------- */
+.timeblock-section { margin-top: 18px; }
+.timeblock-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.timeblock-head .name {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-size: 15px;
+  color: var(--chalk);
+}
+.tb-add-btn {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--chalk);
+  font-family: 'Oswald', sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.timeblock-wrap {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: flex;
+  gap: 10px;
+  max-height: 640px;
+  overflow-y: auto;
+}
+.tb-labels {
+  display: grid;
+  grid-template-rows: repeat(32, 32px);
+  width: 52px;
+  flex-shrink: 0;
+}
+.tb-labels .tb-hour-lbl {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+  transform: translateY(-6px);
+}
+.tb-track {
+  position: relative;
+  flex: 1;
+  display: grid;
+  grid-template-rows: repeat(32, 32px);
+  border-left: 1px solid var(--line);
+}
+.tb-track .tb-hourline {
+  grid-column: 1;
+  border-top: 1px solid var(--line);
+}
+.tb-track .tb-halfline {
+  grid-column: 1;
+  border-top: 1px dashed rgba(255,255,255,0.05);
+}
+.tb-block {
+  grid-column: 1;
+  margin: 1px 4px;
+  border-radius: 7px;
+  padding: 6px 10px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 1px solid transparent;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.tb-block.tb-personal { background: var(--med-dim); border-color: var(--med); }
+.tb-block.tb-imca { background: var(--high-dim); border-color: var(--high); }
+.tb-block.tb-riivet { background: #123018; border-color: var(--good); }
+.tb-block.tb-done { background: var(--surface-2); border-color: var(--line); opacity: 0.6; justify-content: center; }
+.tb-block.tb-done .tb-title { color: var(--muted); }
+.tb-completed-tag {
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+}
+.tb-block .tb-title {
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.2;
+  word-break: break-word;
+}
+.tb-block.tb-personal .tb-title { color: var(--med); }
+.tb-block.tb-imca .tb-title { color: var(--high); }
+.tb-block.tb-riivet .tb-title { color: var(--good); }
+.tb-block .tb-time { font-size: 10.5px; color: var(--muted); }
+.tb-block .tb-note { font-size: 11px; color: var(--muted); word-break: break-word; }
+.tb-block .tb-linked { font-size: 10px; color: var(--score); font-weight: 600; margin-top: 1px; }
+.tb-block.tb-inprogress { box-shadow: 0 0 0 2px rgba(255,210,63,0.4); }
+.tb-block.tb-compact {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 4px 10px;
+}
+.tb-compact-line {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+}
+.tb-compact-line .tb-note { display: inline; font-size: 11px; }
+.tb-now-tag {
+  background: var(--score);
+  color: #fff3e8;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+  letter-spacing: 0.5px;
+  vertical-align: middle;
+}
+.tb-empty-msg {
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+  padding: 30px 10px;
+}
+
+/* ---------- HORIZONTAL TIME BLOCK VIEW (main board / kiosk) ---------- */
+.tb-hscroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.tb-hscroll::-webkit-scrollbar { height: 8px; }
+.tb-hscroll::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+.tb-hlabels {
+  display: grid;
+  height: 26px;
+  align-items: center;
+}
+.tb-hlabels .tb-hour-lbl-h {
+  font-size: 11px;
+  color: var(--muted);
+  padding-left: 6px;
+  border-left: 1px solid var(--line);
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+.tb-hgrid {
+  position: relative;
+  display: grid;
+  height: 130px;
+  border-top: 1px solid var(--line);
+}
+.tb-vline { grid-row: 1; border-left: 1px solid var(--line); }
+.tb-vline.half { border-left: 1px dashed rgba(255,255,255,0.06); }
+.tb-hblock {
+  grid-row: 1;
+  margin: 6px 3px;
+  border-radius: 7px;
+  padding: 8px 10px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 1px solid transparent;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+.tb-hblock .tb-htitle {
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tb-hblock.tb-personal { background: var(--med-dim); border-color: var(--med); }
+.tb-hblock.tb-personal .tb-htitle { color: var(--med); }
+.tb-hblock.tb-imca { background: var(--high-dim); border-color: var(--high); }
+.tb-hblock.tb-imca .tb-htitle { color: var(--high); }
+.tb-hblock.tb-riivet { background: #123018; border-color: var(--good); }
+.tb-hblock.tb-riivet .tb-htitle { color: var(--good); }
+.tb-hblock.tb-done { background: var(--surface-2); border-color: var(--line); opacity: 0.6; }
+.tb-hblock.tb-done .tb-htitle { color: var(--muted); }
+.tb-hblock .tb-hnote {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tb-hblock.tb-inprogress { box-shadow: 0 0 0 2px rgba(255,210,63,0.4); }
+.tb-now-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--score);
+  z-index: 2;
+  pointer-events: none;
+}
+.tb-hscroll-nav {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.tb-hscroll-nav button {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--chalk);
+  font-size: 12px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.tb-task-link {
+  font-size: 10.5px;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  padding: 3px 8px;
+  border-radius: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+}
+.category-picks { display: flex; gap: 8px; }
+.cat-btn {
+  flex: 1;
+  padding: 10px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+.cat-btn.active-personal { background: var(--med-dim); border-color: var(--med); color: var(--med); }
+.cat-btn.active-imca { background: var(--high-dim); border-color: var(--high); color: var(--high); }
+.cat-btn.active-riivet { background: #123018; border-color: var(--good); color: var(--good); }
+.field-row { display: flex; gap: 10px; }
+.field-row .field { flex: 1; }
+.schedule-btn-wrap { margin-bottom: 14px; }
+.schedule-btn {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px dashed var(--line);
+  color: var(--muted);
+  font-size: 13px;
+  padding: 10px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.tb-date-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tb-nav-btn {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--chalk);
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#tbViewDateInput {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--chalk);
+  padding: 7px 9px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-family: 'Inter', sans-serif;
+  color-scheme: dark;
+}
+.field input[type="date"] { color-scheme: dark; }
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.checkbox-field input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  accent-color: var(--score);
+  cursor: pointer;
+}
+.checkbox-field label {
+  margin: 0;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 14px;
+  color: var(--chalk);
+  cursor: pointer;
+}
+.assignee-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+  font-size: 14px;
+  color: var(--chalk);
+  cursor: pointer;
+}
+.assignee-row input[type="checkbox"] {
+  width: 19px;
+  height: 19px;
+  min-width: 19px;
+  accent-color: var(--score);
+  cursor: pointer;
+}
+.team-member-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+  color: var(--chalk);
+}
+.team-member-row .remove-member-btn {
+  background: none;
+  border: 1px solid var(--high);
+  color: var(--high);
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.tb-recur-note {
+  font-size: 12px;
+  color: var(--score);
+  margin: -6px 0 14px;
+}
+.tb-repeat-badge {
+  font-size: 10px;
+  vertical-align: middle;
+}
+
+/* ---------- TEAM SUBMIT PAGE ---------- */
+.submit-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.submit-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 32px 28px;
+  width: 100%;
+  max-width: 440px;
+}
+.submit-card h1 {
+  font-family: 'Oswald', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-size: 24px;
+  margin: 0 0 4px;
+}
+.submit-card .sub-lbl { color: var(--muted); font-size: 13px; margin-bottom: 22px; }
+.submit-confirm { text-align: center; padding: 16px 0; }
+.submit-confirm .big-check { font-size: 44px; color: var(--good); margin-bottom: 10px; }
+
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+</head>
+<body>
+
+<div class="auth-screen" id="authScreen">
+  <div class="auth-box">
+    <div class="auth-title">THE BOARD</div>
+    <div class="auth-sub">Sign in to your board</div>
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="authEmail" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="authPassword" autocomplete="current-password">
+    </div>
+    <div class="auth-error" id="authError" style="display:none;"></div>
+    <button class="btn-save" style="width:100%; padding:14px;" onclick="doSignIn()">Sign In</button>
+    <div style="text-align:center; margin-top:14px;">
+      <a href="#" onclick="doPasswordReset(); return false;" style="color:var(--muted); font-size:12px; text-decoration:underline;">Forgot password?</a>
+    </div>
+  </div>
+</div>
+
+<div class="wrap hidden" id="mainView">
+  <div class="user-bar">
+    <span id="userBarLabel"></span>
+    <button id="editNameBtn" onclick="openNameModal()">Edit Name</button>
+    <button id="exportDataBtn" onclick="openExportModal()">Export Data</button>
+    <button id="manageTeamBtn" style="display:none;" onclick="openManageTeamModal()">👥 Manage Team</button>
+    <button id="submitCodeBtn" style="display:none;" onclick="openSubmitCodeModal()">🔒 Submission Code</button>
+    <button id="newProjectBtn" style="display:none;" onclick="openProjectModal()">+ New Team Project</button>
+    <button onclick="doSignOut()">Sign Out</button>
+  </div>
+
+  <div class="quick-links-box" id="quickLinksBox">
+    <div class="quick-links-label">Quick Links</div>
+    <div class="quick-links-row">
+      <button class="copy-link-btn" onclick="copyKioskLink()">📋 Kiosk Link</button>
+      <button class="copy-link-btn" onclick="copyTeamLink()">📝 Submission Form Link</button>
+      <button class="copy-link-btn" onclick="copyMyViewLink()">👁 My View-Only Link</button>
+    </div>
+  </div>
+
+  <div class="pending-section" id="pendingSection" style="display:none;">
+    <div class="pending-head">🔔 Pending Review (<span id="pendingCount">0</span>)</div>
+    <div class="pending-list" id="pendingList"></div>
+  </div>
+
+  <div class="team-section hidden" id="teamSection">
+    <div class="team-head">
+      <span class="name">Team Projects</span>
+    </div>
+    <div id="teamProjectsArea"></div>
+  </div>
+
+  <div class="quote-banner" id="quoteBanner">
+    <div class="quote-text" id="quoteText">Loading today's quote…</div>
+    <div class="quote-author" id="quoteAuthor"></div>
+    <div class="quote-attribution" id="quoteAttribution" style="display:none;">Quotes via <a href="https://zenquotes.io" target="_blank" rel="noopener">ZenQuotes.io</a></div>
+  </div>
+  <div class="scoreboard">
+    <div class="brand">
+      <div class="title">The Board</div>
+      <div class="date" id="todayDate"></div>
+    </div>
+    <div class="stats-row" style="display:none;">
+      <div class="stat score">
+        <div class="num" id="dailyScoreNum">0</div>
+        <div class="lbl">Today's Pts</div>
+      </div>
+      <div class="stat streak">
+        <div class="num" id="streakNum">0</div>
+        <div class="lbl">Day Streak</div>
+      </div>
+      <div class="stat level">
+        <div class="num" id="levelNum">1</div>
+        <div class="lbl">Level</div>
+      </div>
+      <div class="level-bar-wrap">
+        <div class="lbl" id="levelProgressLbl" style="text-align:left; color: var(--muted);">0 / 200</div>
+        <div class="level-bar-track"><div class="level-bar-fill" id="levelBarFill" style="width:0%"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="add-bar" style="flex-wrap:wrap; gap:10px;">
+    <button class="copy-link-btn" id="repeatingTasksBtn" onclick="openRecurringModal()">🔁 Repeating Tasks</button>
+    <button class="add-btn" id="addTaskBtn" onclick="openModal()">+ Add Task</button>
+  </div>
+
+  <div id="boardArea">
+    <div class="loading-msg">Loading your board…</div>
+  </div>
+
+  <div class="timeblock-section">
+    <div class="timeblock-head">
+      <div class="tb-date-nav">
+        <button class="tb-nav-btn" onclick="shiftTbViewDate(-1)">‹</button>
+        <span class="name" id="tbSectionLabel">Today's Time Blocks</span>
+        <button class="tb-nav-btn" onclick="shiftTbViewDate(1)">›</button>
+        <input type="date" id="tbViewDateInput" onchange="setTbViewDate(this.value)">
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="tb-add-btn" id="tbRepeatingBtn" onclick="openTbRecurringModal()">🔁 Repeating Blocks</button>
+        <button class="tb-add-btn" id="tbClearAllBtn" style="border-color:var(--high); color:var(--high);" onclick="clearAllTimeBlocks()">🗑 Clear All</button>
+        <button class="tb-add-btn" id="tbAddBtn" onclick="openTimeBlockModal()">+ Add Time Block</button>
+      </div>
+    </div>
+    <div id="timeblockArea"></div>
+  </div>
+</div>
+
+<div class="submit-page hidden" id="submitView">
+  <div class="submit-card">
+    <div id="submitFormWrap">
+      <h1>Submit a Task</h1>
+      <div class="sub-lbl">Send a task request to a team member.</div>
+      <div class="field">
+        <label>Your Name</label>
+        <input type="text" id="subName" placeholder="e.g. Jamie" maxlength="40">
+      </div>
+      <div class="field">
+        <label>Who is this for? (select one or more)</label>
+        <div id="subAssigneeList"></div>
+      </div>
+      <div class="field">
+        <label>Task Title</label>
+        <input type="text" id="subTitle" placeholder="What needs doing?" maxlength="80">
+      </div>
+      <div class="field">
+        <label>Details (optional)</label>
+        <textarea id="subSub" placeholder="Any extra info" maxlength="140"></textarea>
+      </div>
+      <div class="field">
+        <label>Suggested Due Date (optional)</label>
+        <input type="date" id="subDue">
+      </div>
+      <div class="field checkbox-field">
+        <input type="checkbox" id="subNeedsTime" onchange="toggleSubTimeRequest()">
+        <label for="subNeedsTime">I need time on their calendar for this</label>
+      </div>
+      <div id="subTimeWrap" style="display:none;">
+        <div class="field-row">
+          <div class="field">
+            <label>Date</label>
+            <input type="date" id="subTimeDate" onchange="refreshAvailability()">
+          </div>
+          <div class="field">
+            <label>How much time?</label>
+            <select id="subDuration" onchange="refreshAvailability()">
+              <option value="30">30 min</option>
+              <option value="60">1 hour</option>
+              <option value="90">1.5 hours</option>
+              <option value="120">2 hours</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label>Available Start Times</label>
+          <select id="subTimeStart"><option value="">Select a person and date first</option></select>
+        </div>
+      </div>
+      <div class="field" id="subCodeWrap" style="display:none;">
+        <label>Access Code</label>
+        <input type="text" id="subAccessCode" placeholder="Ask the team for this" maxlength="30">
+        <div class="auth-error" id="subCodeError" style="display:none; margin-top:8px;"></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-save" style="flex:1;" onclick="submitPendingTask()">Send Request</button>
+      </div>
+    </div>
+    <div class="submit-confirm hidden" id="submitConfirm">
+      <div class="big-check">✓</div>
+      <div style="font-weight:600; margin-bottom:4px;">Sent for review!</div>
+      <div style="color:var(--muted); font-size:13px; margin-bottom:18px;">They'll review it and add it to their board.</div>
+      <button class="btn-save" style="width:100%;" onclick="resetSubmitForm()">Submit Another</button>
+    </div>
+  </div>
+</div>
+
+<div class="submit-page hidden" id="readOnlyView">
+  <div class="submit-card" style="max-width:1300px;">
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+      <div>
+        <h1 style="margin-bottom:2px;" id="roPageTitle">Workload Overview</h1>
+        <div class="sub-lbl" style="margin:0;">view only</div>
+      </div>
+      <a id="roSubmitLink" class="add-btn" href="?submit=1" style="text-decoration:none; display:inline-block; white-space:nowrap;">+ Submit Request</a>
+    </div>
+    <div style="height:22px;"></div>
+
+    <div class="ro-section-label">Today</div>
+    <div id="roToday"></div>
+    <div class="ro-section-label">Tomorrow</div>
+    <div id="roTomorrow"></div>
+    <div class="ro-section-label">Upcoming</div>
+    <div id="roUpcoming"></div>
+
+    <div class="ro-section-label" style="display:flex; align-items:center; justify-content:space-between;">
+      <span>Time Blocks</span>
+      <div class="tb-date-nav">
+        <button class="tb-nav-btn" onclick="shiftRoDate(-1)">‹</button>
+        <span id="roDateLabel" style="font-size:12px; color:var(--muted);"></span>
+        <button class="tb-nav-btn" onclick="shiftRoDate(1)">›</button>
+      </div>
+    </div>
+    <div id="roTimeblockArea"></div>
+  </div>
+</div>
+
+<div class="toast hidden" id="undoToast">
+  <span id="toastMsg">Task completed</span>
+  <button class="toast-undo-btn" onclick="undoLast()">Undo</button>
+</div>
+
+<div class="overlay hidden" id="modalOverlay">
+  <div class="modal">
+    <h2 id="taskModalTitle">New Task</h2>
+    <div class="field">
+      <label>Task Title</label>
+      <input type="text" id="inpTitle" placeholder="e.g. Restock supplements" maxlength="80">
+    </div>
+    <div class="field">
+      <label>Details (optional)</label>
+      <textarea id="inpSub" placeholder="Sub-category or extra info" maxlength="140"></textarea>
+    </div>
+    <div class="field">
+      <label>Priority</label>
+      <div class="priority-picks">
+        <button class="pp-btn" id="ppHigh" onclick="pickPriority('high')">High</button>
+        <button class="pp-btn" id="ppMedium" onclick="pickPriority('medium')">Medium</button>
+        <button class="pp-btn" id="ppLow" onclick="pickPriority('low')">Low</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Due Date &nbsp;<span style="color:var(--muted); font-weight:400; text-transform:none; letter-spacing:0;">(first occurrence, if repeating)</span></label>
+      <input type="date" id="inpDue">
+    </div>
+    <div class="field" id="repeatFieldWrap">
+      <label>Repeat</label>
+      <div class="repeat-picks">
+        <button class="pp-btn" id="rpNone" onclick="pickRepeat('none')">None</button>
+        <button class="pp-btn" id="rpDaily" onclick="pickRepeat('daily')">Daily</button>
+        <button class="pp-btn" id="rpWeekly" onclick="pickRepeat('weekly')">Weekly</button>
+        <button class="pp-btn" id="rpBiweekly" onclick="pickRepeat('biweekly')">Every 2 Wks</button>
+        <button class="pp-btn" id="rpMonthly" onclick="pickRepeat('monthly')">Monthly</button>
+        <button class="pp-btn" id="rpTwicemonthly" onclick="pickRepeat('twicemonthly')">2x/Month</button>
+      </div>
+    </div>
+    <div class="schedule-btn-wrap" id="scheduleBtnWrap" style="display:none;">
+      <button class="schedule-btn" onclick="scheduleTaskTimeBlock()">🕒 Add a Time Block for This Task</button>
+    </div>
+    <div class="field checkbox-field" id="reactivateWrap" style="display:none;">
+      <input type="checkbox" id="inpReactivate">
+      <label for="inpReactivate">Re-activate this task</label>
+    </div>
+    <div class="modal-actions" id="modalDeleteWrap" style="display:none;">
+      <button class="del-btn-full" style="flex:1; padding:12px;" onclick="deleteFromModal()">Delete This Task</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-save" id="taskSaveBtn" onclick="saveTask()">Add to Board</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="tbRecurringModalOverlay">
+  <div class="modal">
+    <h2>Repeating Time Blocks</h2>
+    <div id="tbRecurringList"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" style="flex:1;" onclick="closeTbRecurringModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="confirmCodeModalOverlay">
+  <div class="modal">
+    <h2 id="confirmCodeTitle">Confirm</h2>
+    <div id="confirmCodeMessage" style="color:var(--muted); font-size:13px; margin-bottom:16px;"></div>
+    <div class="field" id="confirmCodeFieldWrap">
+      <label>Enter your Submission Access Code to confirm</label>
+      <input type="text" id="confirmCodeInput" placeholder="Code">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeConfirmCodeModal()">Cancel</button>
+      <button class="btn-save" style="background:var(--high);" onclick="runConfirmedAction()">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="manageTeamModalOverlay">
+  <div class="modal">
+    <h2>Manage Team</h2>
+
+    <div style="background:var(--surface-2); border:1px solid var(--line); border-radius:8px; padding:14px; margin-bottom:18px;">
+      <div style="font-weight:600; font-size:14px; margin-bottom:8px;">Add a New User</div>
+      <div style="color:var(--muted); font-size:12px; margin-bottom:12px;">
+        Two steps: 1) Go to Firebase Console → Authentication → Add user, using this exact email and any throwaway password. 2) Come back here and click "Send Setup Link" — they'll get an email to set their own real password. They never see the throwaway one.
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Name</label>
+          <input type="text" id="inviteName" placeholder="e.g. Sarah" maxlength="30">
+        </div>
+        <div class="field">
+          <label>Email</label>
+          <input type="email" id="inviteEmail" placeholder="sarah@example.com">
+        </div>
+      </div>
+      <button class="btn-save" style="width:100%;" onclick="addInvite()">Save</button>
+    </div>
+
+    <div style="font-weight:600; font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">Pending Invites</div>
+    <div id="inviteList" style="margin-bottom:18px;"></div>
+
+    <div style="font-weight:600; font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">Current Team</div>
+    <div style="color:var(--muted); font-size:13px; margin-bottom:16px;">Removes someone from the directory and submission form — this does not delete their login. Use Firebase Console → Authentication to remove their actual account.</div>
+    <div id="manageTeamList"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" style="flex:1;" onclick="closeManageTeamModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="exportModalOverlay">
+  <div class="modal">
+    <h2>Export Your Data</h2>
+    <div style="color:var(--muted); font-size:13px; margin-bottom:16px;">Downloads your own tasks, time blocks, and stats — nobody else's.</div>
+    <button class="btn-save" style="width:100%; margin-bottom:10px;" onclick="exportDataJSON()">Full Backup (JSON)</button>
+    <button class="btn-save" style="width:100%; margin-bottom:10px;" onclick="exportTasksCSV()">Tasks Only (CSV)</button>
+    <div class="modal-actions">
+      <button class="btn-cancel" style="flex:1;" onclick="closeExportModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="submitCodeModalOverlay">
+  <div class="modal">
+    <h2>Submission Access Code</h2>
+    <div style="color:var(--muted); font-size:13px; margin-bottom:16px;">Anyone using the submission form has to enter this code before it'll send. Leave it blank to turn the requirement off entirely. This is a basic filter, not real security — treat it like a shared password, not a secret.</div>
+    <div class="field">
+      <label>Code</label>
+      <input type="text" id="submitCodeInput" placeholder="e.g. RACEDAY" maxlength="30">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeSubmitCodeModal()">Cancel</button>
+      <button class="btn-save" onclick="saveSubmitCode()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="nameModalOverlay">
+  <div class="modal">
+    <h2>Your Display Name</h2>
+    <div class="field">
+      <label>This is what shows up in dropdowns and "From" tags</label>
+      <input type="text" id="nameInput" placeholder="e.g. Sarah" maxlength="30">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeNameModal()">Cancel</button>
+      <button class="btn-save" onclick="saveDisplayName()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="projectModalOverlay">
+  <div class="modal">
+    <h2>New Team Project</h2>
+    <div class="field">
+      <label>Project Title</label>
+      <input type="text" id="projTitle" placeholder="e.g. Q3 Trade Show Booth" maxlength="80">
+    </div>
+    <div class="field">
+      <label>Sub-jobs (one per line)</label>
+      <textarea id="projSubjobs" placeholder="Design banner&#10;Order supplies&#10;Book travel" style="min-height:110px;"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeProjectModal()">Cancel</button>
+      <button class="btn-save" onclick="saveProject()">Create Project</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="timeblockModalOverlay">
+  <div class="modal">
+    <h2 id="tbModalTitle">New Time Block</h2>
+    <div class="field">
+      <label>Title</label>
+      <input type="text" id="tbTitle" placeholder="e.g. Client call" maxlength="80">
+    </div>
+    <div class="field">
+      <label>Note (optional)</label>
+      <textarea id="tbNote" placeholder="Any extra info" maxlength="140"></textarea>
+    </div>
+    <div class="field">
+      <label>Category</label>
+      <div class="category-picks">
+        <button class="cat-btn" id="catPersonal" onclick="pickCategory('personal')">Personal</button>
+        <button class="cat-btn" id="catImca" onclick="pickCategory('imca')">IMCA</button>
+        <button class="cat-btn" id="catRiivet" onclick="pickCategory('riivet')">Riivet</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Date</label>
+      <input type="date" id="tbDate">
+    </div>
+    <div class="field" id="tbRepeatFieldWrap">
+      <label>Repeat</label>
+      <div class="repeat-picks">
+        <button class="pp-btn" id="tbRpNone" onclick="pickTbRepeat('none')">None</button>
+        <button class="pp-btn" id="tbRpDaily" onclick="pickTbRepeat('daily')">Daily</button>
+        <button class="pp-btn" id="tbRpWeekly" onclick="pickTbRepeat('weekly')">Weekly</button>
+        <button class="pp-btn" id="tbRpBiweekly" onclick="pickTbRepeat('biweekly')">Every 2 Wks</button>
+        <button class="pp-btn" id="tbRpMonthly" onclick="pickTbRepeat('monthly')">Monthly</button>
+        <button class="pp-btn" id="tbRpTwicemonthly" onclick="pickTbRepeat('twicemonthly')">2x/Month</button>
+      </div>
+    </div>
+    <div class="field" id="tbDowWrap" style="display:none;">
+      <label>On which day(s)?</label>
+      <div class="dow-picks">
+        <label class="dow-check"><input type="checkbox" class="tb-dow-check" value="0"> Sun</label>
+        <label class="dow-check"><input type="checkbox" class="tb-dow-check" value="1"> M</label>
+        <label class="dow-check"><input type="checkbox" class="tb-dow-check" value="2"> Tu</label>
+        <label class="dow-check"><input type="checkbox" class="tb-dow-check" value="3"> W</label>
+        <label class="dow-check"><input type="checkbox" class="tb-dow-check" value="4"> Th</label>
+        <label class="dow-check"><input type="checkbox" class="tb-dow-check" value="5"> F</label>
+        <label class="dow-check"><input type="checkbox" class="tb-dow-check" value="6"> Sat</label>
+      </div>
+    </div>
+    <div class="tb-recur-note" id="tbRecurNote" style="display:none;">🔁 Part of a repeating series — changes here apply only to this day.</div>
+    <div class="field-row">
+      <div class="field">
+        <label>Start Time</label>
+        <select id="tbStart"></select>
+      </div>
+      <div class="field">
+        <label>End Time</label>
+        <select id="tbEnd"></select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Link to Task (optional)</label>
+      <select id="tbTaskLink" onchange="onLinkTaskChange()"><option value="">None</option></select>
+    </div>
+    <div class="field checkbox-field">
+      <input type="checkbox" id="tbAlsoTask" onchange="toggleTbTaskDue()">
+      <label for="tbAlsoTask">Also add this as a task on the board</label>
+    </div>
+    <div class="field" id="tbTaskDueWrap" style="display:none;">
+      <label>Task Due Date</label>
+      <input type="date" id="tbTaskDue">
+    </div>
+    <div class="modal-actions" id="tbDeleteWrap" style="display:none;">
+      <button class="del-btn-full" style="flex:1; padding:12px;" onclick="deleteFromTbModal()">Delete This Time Block</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeTimeBlockModal()">Cancel</button>
+      <button class="btn-save" id="tbSaveBtn" onclick="saveTimeBlock()">Add Block</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="recurringModalOverlay">
+  <div class="modal">
+    <h2>Repeating Tasks</h2>
+    <div id="recurringList"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" style="flex:1;" onclick="closeRecurringModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="labelModalOverlay">
+  <div class="modal">
+    <h2>Label & Accept</h2>
+    <div class="field">
+      <label>Task</label>
+      <div style="font-weight:600; font-size:15px;" id="labelTaskTitle"></div>
+    </div>
+    <div class="field" id="labelSubWrap">
+      <label>Details</label>
+      <div style="color:var(--muted); font-size:13px;" id="labelTaskSub"></div>
+    </div>
+    <div class="field">
+      <label>Submitted by</label>
+      <div style="color:var(--score); font-weight:600; font-size:14px;" id="labelTaskFrom"></div>
+    </div>
+    <div class="field" id="labelTimeWrap" style="display:none;">
+      <label>Requested Time Block</label>
+      <div style="color:var(--good); font-weight:600; font-size:13.5px;" id="labelTimeInfo"></div>
+      <div style="color:var(--muted); font-size:11.5px; margin-top:4px;">Accepting will add this straight to your Time Blocks for that day.</div>
+    </div>
+    <div class="field">
+      <label>Priority</label>
+      <div class="priority-picks">
+        <button class="pp-btn" id="lppHigh" onclick="pickLabelPriority('high')">High</button>
+        <button class="pp-btn" id="lppMedium" onclick="pickLabelPriority('medium')">Medium</button>
+        <button class="pp-btn" id="lppLow" onclick="pickLabelPriority('low')">Low</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Due Date</label>
+      <input type="date" id="labelDue">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeLabelModal()">Cancel</button>
+      <button class="btn-save" onclick="confirmAccept()">Accept & Add</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="linkModalOverlay">
+  <div class="modal">
+    <h2 id="linkModalTitle">Team Submission Link</h2>
+    <div class="field">
+      <label id="linkModalLabel">Send this to your team</label>
+      <input type="text" id="linkDisplay" readonly onclick="this.select()">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeLinkModal()">Close</button>
+      <button class="btn-save" onclick="copyLinkFromModal()">Copy</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const POINTS = { high: 30, medium: 20, low: 10 };
+const LEVEL_STEP = 200;
+const DB_URL = 'https://task-app-1a091-default-rtdb.firebaseio.com';
+const OWNER_UID = 'Mm1J9bx1HvfJ0b70PDxNxq1PmmK2';
+
+const firebaseConfig = {
+  apiKey: 'AIzaSyBJ0u3ZbTatgKWK0U45lhT1vheTmyWg7QE',
+  databaseURL: DB_URL
+};
+firebase.initializeApp(firebaseConfig);
+const fbAuth = firebase.auth();
+
+let currentUid = null;
+let currentUserName = null;
+
+async function authToken() {
+  if (!fbAuth.currentUser) return null;
+  return await fbAuth.currentUser.getIdToken(); // auto-refreshes if expired
+}
+
+// Personal data (tasks, timeblocks, stats, etc.) lives under users/{uid}/...
+// Shared data (directory, sharedProjects) lives at the root, readable/writable by any signed-in teammate.
+async function dbGet(path, shared) {
+  const fullPath = shared ? path : `users/${currentUid}/${path}`;
+  const token = await authToken();
+  const url = `${DB_URL}/${fullPath}.json${token ? '?auth=' + token : ''}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('db get failed: ' + res.status);
+  return await res.json();
+}
+async function dbSet(path, value, shared) {
+  const fullPath = shared ? path : `users/${currentUid}/${path}`;
+  const token = await authToken();
+  const url = `${DB_URL}/${fullPath}.json${token ? '?auth=' + token : ''}`;
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(value)
+  });
+  if (!res.ok) throw new Error('db set failed: ' + res.status);
+  return true;
+}
+
+const urlParams = new URLSearchParams(location.search);
+const isSubmitMode = urlParams.get('submit') === '1';
+const isKioskMode = urlParams.get('kiosk') === '1';
+const isViewOnlyMode = urlParams.get('view') === '1';
+const roTargetUid = urlParams.get('who') || OWNER_UID; // whose board this view-only page shows
+
+let tasks = [];
+let pendingQueue = [];
+let recurringTemplates = [];
+let timeBlocks = [];
+let recurringTimeBlockTemplates = [];
+let stats = { totalPoints: 0, dailyScore: 0, lastScoreDate: null, streak: 0, lastActiveDate: null };
+let selectedPriority = 'medium';
+let selectedRepeat = 'none';
+let selectedTbRepeat = 'none';
+let labelPriority = 'medium';
+let selectedCategory = 'personal';
+let expandedUpcomingId = null;
+let editingTaskId = null;
+let acceptingId = null;
+let editingTbId = null;
+let lastCompletedId = null;
+let toastTimer = null;
+let pendingPollTimer = null;
+
+const TB_START_MIN = 480;  // 8:00 AM
+const TB_END_MIN = 1440;   // 12:00 AM (midnight)
+const TB_SLOT_MIN = 30;
+const TB_RECUR_HORIZON_DAYS = 14; // rolling 2-week window — recalculated fresh every refresh, so it always covers "today + 2 weeks," never more
+const TB_SLOT_PX = 120; // pixel width per 30-min slot on the horizontal timeline — 8 slots = a 4-hour window on screen
+const TB_CATEGORY_LABELS = { personal: 'Personal', imca: 'IMCA', riivet: 'Riivet' };
+let tbViewDate = todayStr();
+let lastKnownToday = todayStr();
+
+// Used only if the live quote API can't be reached (CORS hiccup, network blip, API downtime).
+// Add your own favorites here any time — just keep the same {q, a} shape ("a" can be left blank).
+const LOCAL_FALLBACK_QUOTES = [
+  { q: "Show up on the days you don't feel like it — that's the whole game.", a: "" },
+  { q: "Nobody regrets the rep they finished. Everybody regrets the one they skipped.", a: "" },
+  { q: "Procrastination is a loan against tomorrow, and tomorrow charges interest.", a: "" },
+  { q: "Small, unglamorous work today buys you options tomorrow.", a: "" },
+  { q: "Motivation gets you started. A checklist gets you finished.", a: "" },
+  { q: "The task doesn't care how you feel about it. Neither does the deadline.", a: "" },
+  { q: "You're not behind. You're just not done yet. Go finish.", a: "" },
+  { q: "Comfort is the enemy of progress, wearing a really cozy jacket.", a: "" },
+  { q: "Discipline is just remembering what you wanted before you got distracted.", a: "" },
+  { q: "A messy first attempt still beats a perfect plan that never started.", a: "" },
+  { q: "The board doesn't lie. Neither does your streak.", a: "" },
+  { q: "Do the annoying thing first. Everything after gets easier.", a: "" },
+  { q: "Nobody's coming to do it for you. Might as well be today.", a: "" },
+  { q: "Every checked box is proof you're tougher than your excuses.", a: "" },
+  { q: "Rest is earned, not defaulted to.", a: "" },
+  { q: "Stop negotiating with the task. Just start it.", a: "" },
+  { q: "You've done harder things than this. Act like it.", a: "" },
+  { q: "Progress doesn't need permission. It just needs a start time.", a: "" }
+];
+
+function dayOfYear() {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), 0, 0);
+  return Math.floor((now - start) / 86400000);
+}
+function renderQuote(q, a, fromApi) {
+  document.getElementById('quoteText').textContent = '“' + q + '”';
+  document.getElementById('quoteAuthor').textContent = a ? '— ' + a : '';
+  document.getElementById('quoteAttribution').style.display = fromApi ? 'block' : 'none';
+}
+async function loadDailyQuote() {
+  const today = todayStr();
+  let cached = null;
+  try { cached = JSON.parse(localStorage.getItem('dailyQuoteCache') || 'null'); } catch (e) { cached = null; }
+  if (cached && cached.date === today && cached.q) {
+    renderQuote(cached.q, cached.a, cached.fromApi);
+    return;
+  }
+  try {
+    const res = await fetch('https://zenquotes.io/api/random');
+    if (!res.ok) throw new Error('bad status: ' + res.status);
+    const data = await res.json();
+    const q = data[0].q;
+    const a = data[0].a;
+    renderQuote(q, a, true);
+    try { localStorage.setItem('dailyQuoteCache', JSON.stringify({ date: today, q, a, fromApi: true })); } catch (e) {}
+  } catch (e) {
+    // API unreachable (often a CORS restriction on the free tier, sometimes just downtime) —
+    // fall back to a local quote that still rotates day to day.
+    const fb = LOCAL_FALLBACK_QUOTES[dayOfYear() % LOCAL_FALLBACK_QUOTES.length];
+    renderQuote(fb.q, fb.a, false);
+    try { localStorage.setItem('dailyQuoteCache', JSON.stringify({ date: today, q: fb.q, a: fb.a, fromApi: false })); } catch (e2) {}
+  }
+}
+
+function showUndoToast(title, pts, late) {
+  let msg = `"${title}" completed`;
+  if (typeof pts === 'number') {
+    msg += ` +${pts} pts`;
+    if (late > 0) msg += ` (-5/day × ${late} late)`;
+  }
+  document.getElementById('toastMsg').textContent = msg;
+  const toast = document.getElementById('undoToast');
+  toast.classList.remove('hidden');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.add('hidden'), 5000);
+}
+function hideToast() {
+  document.getElementById('undoToast').classList.add('hidden');
+  clearTimeout(toastTimer);
+}
+function undoLast() {
+  if (lastCompletedId) {
+    toggleComplete(lastCompletedId);
+    lastCompletedId = null;
+  }
+  hideToast();
+}
+
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function yesterdayStr() {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function tomorrowStr() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function toggleTaskRow(id) {
+  expandedUpcomingId = (expandedUpcomingId === id) ? null : id;
+  render();
+}
+function fmtDate(str) {
+  if (!str) return '';
+  const [y,m,d] = str.split('-');
+  const dt = new Date(y, m-1, d);
+  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+async function loadState() {
+  try {
+    const t = await dbGet('tasks');
+    tasks = t || [];
+  } catch (e) { tasks = []; }
+  try {
+    const s = await dbGet('stats');
+    stats = s || stats;
+  } catch (e) { /* defaults stay */ }
+  try {
+    const r = await dbGet('templates');
+    recurringTemplates = r ? Object.values(r) : [];
+  } catch (e) { recurringTemplates = []; }
+  try {
+    const tb = await dbGet('timeblocks');
+    timeBlocks = tb ? Object.values(tb) : [];
+  } catch (e) { timeBlocks = []; }
+  try {
+    const tbt = await dbGet('tbTemplates');
+    recurringTimeBlockTemplates = tbt ? Object.values(tbt) : [];
+  } catch (e) { recurringTimeBlockTemplates = []; }
+
+  // roll over daily score if the date changed
+  if (stats.lastScoreDate !== todayStr()) {
+    stats.dailyScore = 0;
+    stats.lastScoreDate = todayStr();
+  }
+  generateRecurringInstances();
+  generateRecurringTimeBlockInstances();
+  render();
+  saveStats(); // persist rollover
+  syncBusyTimes();
+  syncPublicTasks();
+}
+
+function doSignIn() {
+  const email = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
+  const errEl = document.getElementById('authError');
+  errEl.style.display = 'none';
+  fbAuth.signInWithEmailAndPassword(email, password).catch(err => {
+    errEl.style.color = '';
+    errEl.textContent = err.message || 'Sign in failed. Check your email and password.';
+    errEl.style.display = 'block';
+  });
+}
+function doPasswordReset() {
+  const email = document.getElementById('authEmail').value.trim();
+  const errEl = document.getElementById('authError');
+  if (!email) {
+    errEl.style.color = '';
+    errEl.textContent = 'Type your email above first, then click "Forgot password?"';
+    errEl.style.display = 'block';
+    return;
+  }
+  fbAuth.sendPasswordResetEmail(email).then(() => {
+    errEl.style.color = 'var(--good)';
+    errEl.textContent = 'Check your inbox for a reset link.';
+    errEl.style.display = 'block';
+  }).catch(err => {
+    errEl.style.color = '';
+    errEl.textContent = err.message || 'Could not send a reset email.';
+    errEl.style.display = 'block';
+  });
+}
+function doSignOut() {
+  fbAuth.signOut();
+}
+async function updateDirectoryEntry() {
+  // Only fall back to the email-prefix name the very first time — never overwrite
+  // a name someone already set themselves on a later login.
+  let existing = null;
+  try { existing = await dbGet(`directory/${currentUid}`, true); } catch (e) { existing = null; }
+  if (existing && existing.name) {
+    currentUserName = existing.name;
+  } else {
+    // First login ever — check for a matching pending invite so their name is
+    // right from the start, and clear that invite since it's now fulfilled.
+    let invitedName = null;
+    let matchedKey = null;
+    try {
+      const invites = await dbGet('invites', true);
+      const myEmail = (fbAuth.currentUser.email || '').toLowerCase();
+      if (invites) {
+        for (const key of Object.keys(invites)) {
+          if ((invites[key].email || '').toLowerCase() === myEmail) {
+            invitedName = invites[key].name;
+            matchedKey = key;
+            break;
+          }
+        }
+      }
+    } catch (e) { /* no invites to check against, that's fine */ }
+
+    currentUserName = invitedName || (fbAuth.currentUser.email || 'user').split('@')[0];
+    try { await dbSet(`directory/${currentUid}`, { name: currentUserName }, true); }
+    catch (e) { console.error('directory update failed', e); }
+
+    if (matchedKey) {
+      try { await dbSet(`invites/${matchedKey}`, null, true); } catch (e) { /* not critical */ }
+    }
+  }
+  document.getElementById('userBarLabel').textContent = `Signed in as ${currentUserName} (${fbAuth.currentUser.email})`;
+}
+function openNameModal() {
+  document.getElementById('nameInput').value = currentUserName || '';
+  document.getElementById('nameModalOverlay').classList.remove('hidden');
+  setTimeout(() => document.getElementById('nameInput').focus(), 50);
+}
+function closeNameModal() {
+  document.getElementById('nameModalOverlay').classList.add('hidden');
+}
+async function saveDisplayName() {
+  const val = document.getElementById('nameInput').value.trim();
+  if (!val) { document.getElementById('nameInput').focus(); return; }
+  currentUserName = val;
+  try { await dbSet(`directory/${currentUid}`, { name: val }, true); }
+  catch (e) { console.error('save display name failed', e); }
+  document.getElementById('userBarLabel').textContent = `Signed in as ${currentUserName} (${fbAuth.currentUser.email})`;
+  closeNameModal();
+}
+// One-time move of the original single-user data (from before logins existed) into the
+// owner's own account, so nothing from before this update gets lost.
+async function migrateLegacyDataIfNeeded() {
+  if (currentUid !== OWNER_UID) return;
+  let already = false;
+  try { already = await dbGet('migrated'); } catch (e) { already = false; }
+  if (already) return;
+  try {
+    const legacyTasks = await dbGet('tasks', true);
+    const legacyStats = await dbGet('stats', true);
+    const legacyTemplates = await dbGet('templates', true);
+    const legacyTimeblocks = await dbGet('timeblocks', true);
+    const legacyTbTemplates = await dbGet('tbTemplates', true);
+    if (legacyTasks) await dbSet('tasks', legacyTasks);
+    if (legacyStats) await dbSet('stats', legacyStats);
+    if (legacyTemplates) await dbSet('templates', legacyTemplates);
+    if (legacyTimeblocks) await dbSet('timeblocks', legacyTimeblocks);
+    if (legacyTbTemplates) await dbSet('tbTemplates', legacyTbTemplates);
+    await dbSet('migrated', true);
+  } catch (e) {
+    console.error('legacy migration failed', e);
+  }
+}
+
+/* ---------- TEAM PROJECTS ---------- */
+let teamProjects = [];
+async function loadTeamProjects() {
+  try {
+    const p = await dbGet('sharedProjects', true);
+    teamProjects = p ? Object.values(p) : [];
+  } catch (e) { teamProjects = []; }
+  renderTeamProjects();
+}
+async function saveTeamProjects() {
+  try { await dbSet('sharedProjects', teamProjects, true); }
+  catch (e) { console.error('save team projects failed', e); }
+}
+/* ---------- MANAGE TEAM (owner-only) ---------- */
+/* ---------- SUBMISSION ACCESS CODE (owner-only) ---------- */
+async function openSubmitCodeModal() {
+  document.getElementById('submitCodeModalOverlay').classList.remove('hidden');
+  let current = null;
+  try { current = await dbGet('settings/submitCode', true); } catch (e) { current = null; }
+  document.getElementById('submitCodeInput').value = current || '';
+}
+function closeSubmitCodeModal() {
+  document.getElementById('submitCodeModalOverlay').classList.add('hidden');
+}
+async function saveSubmitCode() {
+  const val = document.getElementById('submitCodeInput').value.trim();
+  try { await dbSet('settings/submitCode', val || null, true); }
+  catch (e) { console.error('save submit code failed', e); alert('Could not save — check your connection and try again.'); return; }
+  closeSubmitCodeModal();
+}
+
+/* ---------- EXPORT DATA (personal, JSON + CSV) ---------- */
+function openExportModal() {
+  document.getElementById('exportModalOverlay').classList.remove('hidden');
+}
+function closeExportModal() {
+  document.getElementById('exportModalOverlay').classList.add('hidden');
+}
+function downloadFile(filename, content, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function exportDataJSON() {
+  const bundle = {
+    exportedAt: new Date().toISOString(),
+    tasks, timeBlocks, stats,
+    recurringTemplates, recurringTimeBlockTemplates
+  };
+  downloadFile(`the-board-backup-${todayStr()}.json`, JSON.stringify(bundle, null, 2), 'application/json');
+}
+function csvEscape(val) {
+  if (val === null || val === undefined) return '';
+  const str = String(val);
+  return /[",\n]/.test(str) ? '"' + str.replace(/"/g, '""') + '"' : str;
+}
+function exportTasksCSV() {
+  const headers = ['Title', 'Details', 'Priority', 'Due Date', 'Completed', 'Completed Date', 'Submitted By'];
+  const rows = tasks.map(t => [
+    t.title, t.sub || '', t.priority, t.due || '',
+    t.completed ? 'Yes' : 'No', t.completedAt || '', t.submittedBy || ''
+  ]);
+  const csv = [headers, ...rows].map(r => r.map(csvEscape).join(',')).join('\r\n');
+  downloadFile(`the-board-tasks-${todayStr()}.csv`, csv, 'text/csv');
+}
+
+function inviteKey(email) {
+  return email.trim().toLowerCase().replace(/[.#$\[\]\/]/g, '_');
+}
+async function openManageTeamModal() {
+  document.getElementById('manageTeamModalOverlay').classList.remove('hidden');
+  document.getElementById('inviteName').value = '';
+  document.getElementById('inviteEmail').value = '';
+  renderInviteList();
+
+  document.getElementById('manageTeamList').innerHTML = `<div class="ro-empty">Loading…</div>`;
+  let dir = null;
+  try { dir = await dbGet('directory', true); } catch (e) { dir = null; }
+  const entries = dir ? Object.keys(dir).map(uid => ({ uid, name: (dir[uid] || {}).name || 'Unknown' })) : [];
+  if (entries.length === 0) {
+    document.getElementById('manageTeamList').innerHTML = `<div class="ro-empty">No one in the directory yet.</div>`;
+    return;
+  }
+  document.getElementById('manageTeamList').innerHTML = entries.map(m => `
+    <div class="team-member-row">
+      <span>${escapeHtml(m.name)}${m.uid === OWNER_UID ? ' (owner)' : ''}</span>
+      ${m.uid === OWNER_UID ? '' : `<button class="remove-member-btn" onclick="removeTeamMember('${m.uid}','${escapeHtml(m.name)}')">Remove</button>`}
+    </div>
+  `).join('');
+}
+async function renderInviteList() {
+  const el = document.getElementById('inviteList');
+  el.innerHTML = `<div class="ro-empty">Loading…</div>`;
+  let invites = null;
+  try { invites = await dbGet('invites', true); } catch (e) { invites = null; }
+  const entries = invites ? Object.keys(invites).map(k => invites[k]) : [];
+  if (entries.length === 0) {
+    el.innerHTML = `<div class="ro-empty">No pending invites.</div>`;
+    return;
+  }
+  el.innerHTML = entries.map(inv => `
+    <div class="team-member-row">
+      <span>${escapeHtml(inv.name)} <span style="color:var(--muted); font-size:12px;">(${escapeHtml(inv.email)})</span></span>
+      <div style="display:flex; gap:8px;">
+        <button class="remove-member-btn" style="border-color:var(--good); color:var(--good);" onclick="sendSetupLink('${escapeHtml(inv.email)}')">Send Setup Link</button>
+        <button class="remove-member-btn" onclick="removeInvite('${inviteKey(inv.email)}')">Remove</button>
+      </div>
+    </div>
+  `).join('');
+}
+async function addInvite() {
+  const name = document.getElementById('inviteName').value.trim();
+  const email = document.getElementById('inviteEmail').value.trim();
+  if (!name) { document.getElementById('inviteName').focus(); return; }
+  if (!email || !email.includes('@')) { document.getElementById('inviteEmail').focus(); return; }
+  try {
+    await dbSet(`invites/${inviteKey(email)}`, { name, email, addedAt: todayStr() }, true);
+  } catch (e) {
+    console.error('add invite failed', e);
+    alert('Could not save — check your connection and try again.');
+    return;
+  }
+  document.getElementById('inviteName').value = '';
+  document.getElementById('inviteEmail').value = '';
+  renderInviteList();
+}
+async function removeInvite(key) {
+  try { await dbSet(`invites/${key}`, null, true); }
+  catch (e) { console.error('remove invite failed', e); }
+  renderInviteList();
+}
+function sendSetupLink(email) {
+  if (!confirm(`Send a password-setup email to ${email}?\n\nThis only works if you've already created their login in Firebase Console with this exact email — otherwise nothing gets sent.`)) return;
+  fbAuth.sendPasswordResetEmail(email).then(() => {
+    alert(`Setup link sent to ${email} (if that account exists yet).`);
+  }).catch(err => {
+    alert('Could not send: ' + (err.message || 'unknown error'));
+  });
+}
+function closeManageTeamModal() {
+  document.getElementById('manageTeamModalOverlay').classList.add('hidden');
+}
+async function removeTeamMember(uid, name) {
+  if (uid === OWNER_UID) return; // safety net, button is already hidden for this case
+  if (!confirm(`Remove ${name} from the directory and submission form? Their login stays active — this only stops new requests from being routed to them. Their existing tasks/time blocks are untouched.`)) return;
+  try {
+    await dbSet(`directory/${uid}`, null, true);
+    await dbSet(`busyTimes/${uid}`, null, true);
+    await dbSet(`publicTasks/${uid}`, null, true);
+  } catch (e) {
+    console.error('remove team member failed', e);
+    alert('Something went wrong removing them — check your connection and try again.');
+  }
+  openManageTeamModal(); // refresh the list
+}
+
+function openProjectModal() {
+  document.getElementById('projTitle').value = '';
+  document.getElementById('projSubjobs').value = '';
+  document.getElementById('projectModalOverlay').classList.remove('hidden');
+}
+function closeProjectModal() {
+  document.getElementById('projectModalOverlay').classList.add('hidden');
+}
+function saveProject() {
+  const title = document.getElementById('projTitle').value.trim();
+  if (!title) { document.getElementById('projTitle').focus(); return; }
+  const lines = document.getElementById('projSubjobs').value.split('\n').map(s => s.trim()).filter(Boolean);
+  const subjobs = {};
+  lines.forEach((line, i) => {
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6) + i;
+    subjobs[id] = { id, title: line, assignedToUid: null, assignedToName: null, completed: false, completedBy: null };
+  });
+  const projId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  teamProjects.push({ id: projId, title, createdBy: currentUserName, createdAt: todayStr(), subjobs });
+  saveTeamProjects();
+  closeProjectModal();
+  renderTeamProjects();
+}
+function claimSubjob(projId, subId) {
+  const proj = teamProjects.find(p => p.id === projId);
+  if (!proj) return;
+  const job = proj.subjobs[subId];
+  if (!job || job.assignedToUid) return;
+  job.assignedToUid = currentUid;
+  job.assignedToName = currentUserName;
+  saveTeamProjects();
+  renderTeamProjects();
+}
+function completeSubjob(projId, subId) {
+  const proj = teamProjects.find(p => p.id === projId);
+  if (!proj) return;
+  const job = proj.subjobs[subId];
+  if (!job || job.completed) return;
+  job.completed = true;
+  job.completedBy = currentUserName;
+  saveTeamProjects();
+  renderTeamProjects();
+  // same point scale as a Medium personal task, credited to whoever finished it
+  stats.totalPoints += POINTS.medium;
+  stats.dailyScore += POINTS.medium;
+  saveStats();
+  render();
+}
+function renderTeamProjects() {
+  const section = document.getElementById('teamSection');
+  const area = document.getElementById('teamProjectsArea');
+  if (teamProjects.length === 0) {
+    section.classList.add('hidden');
+    return;
+  }
+  section.classList.remove('hidden');
+  area.innerHTML = teamProjects.map(proj => {
+    const jobs = Object.values(proj.subjobs || {});
+    const doneCount = jobs.filter(j => j.completed).length;
+    const rows = jobs.map(j => {
+      let actionHtml;
+      if (j.completed) {
+        actionHtml = `<span class="subjob-meta">✓ ${escapeHtml(j.completedBy || '')}</span>`;
+      } else if (!j.assignedToUid) {
+        actionHtml = `<div class="subjob-actions"><button class="claim-btn" onclick="claimSubjob('${proj.id}','${j.id}')">Claim</button></div>`;
+      } else if (j.assignedToUid === currentUid) {
+        actionHtml = `<div class="subjob-actions"><button class="complete-btn" onclick="completeSubjob('${proj.id}','${j.id}')">Mark Done</button></div>`;
+      } else {
+        actionHtml = `<span class="subjob-meta">${escapeHtml(j.assignedToName || '')}</span>`;
+      }
+      return `<div class="subjob-row">
+        <div class="subjob-title ${j.completed ? 'done' : ''}">${escapeHtml(j.title)}</div>
+        ${actionHtml}
+      </div>`;
+    }).join('');
+    return `<div class="project-card">
+      <div class="project-title-row">
+        <span class="project-title">${escapeHtml(proj.title)}</span>
+        <span class="project-progress">${doneCount}/${jobs.length} done</span>
+      </div>
+      ${rows}
+    </div>`;
+  }).join('');
+}
+
+/* ---------- READ-ONLY WORKLOAD VIEW (no login, nothing clickable) ---------- */
+const RO_CATEGORY_LABELS = { personal: 'Personal Time', imca: 'IMCA Projects', riivet: 'Riivet Projects' };
+let roDate = todayStr();
+
+async function publicFetch(path) {
+  try {
+    const res = await fetch(`${DB_URL}/${path}.json`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) { return null; }
+}
+
+function shiftRoDate(deltaDays) {
+  const d = new Date(roDate + 'T00:00:00');
+  d.setDate(d.getDate() + deltaDays);
+  roDate = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  renderReadOnlyTimeblocks();
+}
+
+async function initReadOnlyView() {
+  const dirEntry = await publicFetch(`directory/${roTargetUid}`);
+  const personName = (dirEntry && dirEntry.name) ? dirEntry.name : 'This';
+  document.getElementById('roPageTitle').textContent = `${personName}'s Board`;
+  document.getElementById('roSubmitLink').href = location.pathname + '?submit=1&who=' + roTargetUid;
+
+  const tasksData = await publicFetch(`publicTasks/${roTargetUid}`);
+  const roTasks = tasksData ? Object.values(tasksData) : [];
+  renderReadOnlyTasks(roTasks);
+
+  const busyData = await publicFetch(`busyTimes/${roTargetUid}`);
+  window.__roBusy = busyData ? Object.values(busyData) : [];
+  renderReadOnlyTimeblocks();
+}
+
+function renderReadOnlyTasks(roTasks) {
+  const today = todayStr();
+  const tomorrow = tomorrowStr();
+  const buckets = { today: [], tomorrow: [], upcoming: [] };
+  roTasks.forEach(t => {
+    if (!t.due || t.due > tomorrow) buckets.upcoming.push(t);
+    else if (t.due === tomorrow) buckets.tomorrow.push(t);
+    else buckets.today.push(t); // covers today and overdue
+  });
+  buckets.today.sort((a, b) => (a.due || '').localeCompare(b.due || ''));
+  buckets.upcoming.sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999'));
+
+  function rowsFor(list) {
+    if (list.length === 0) return `<div class="ro-empty">Nothing here.</div>`;
+    const today = todayStr();
+    return list.map(t => {
+      let cls = 'ro-normal';
+      let suffix = '';
+      if (t.completed) {
+        cls = 'ro-done';
+      } else if (t.due && t.due < today) {
+        cls = 'ro-pastdue';
+        suffix = ' – PAST DUE';
+      } else if (t.priority === 'high') {
+        cls = 'ro-important';
+        suffix = ' – IMPORTANT';
+      }
+      return `<div class="ro-task-row ${cls}">
+        <span>${escapeHtml(t.title)}${suffix}</span>
+        ${t.due ? `<span class="ro-due">${fmtDate(t.due)}</span>` : ''}
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('roToday').innerHTML = rowsFor(buckets.today);
+  document.getElementById('roTomorrow').innerHTML = rowsFor(buckets.tomorrow);
+  document.getElementById('roUpcoming').innerHTML = rowsFor(buckets.upcoming);
+}
+
+const RO_SLOT_PX = 38; // condensed width per 30-min slot — sized so the full 8am-midnight day fits without scrolling
+
+function renderReadOnlyTimeblocks() {
+  document.getElementById('roDateLabel').textContent = new Date(roDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  const area = document.getElementById('roTimeblockArea');
+  const busy = (window.__roBusy || []).filter(b => b.date === roDate).sort((a, b) => a.start - b.start);
+
+  if (busy.length === 0) {
+    area.innerHTML = `<div class="ro-empty">No time blocked out this day.</div>`;
+    return;
+  }
+
+  const totalSlots = (TB_END_MIN - TB_START_MIN) / TB_SLOT_MIN;
+  const trackWidth = totalSlots * RO_SLOT_PX;
+
+  let labelsHtml = '';
+  for (let m = TB_START_MIN; m < TB_END_MIN; m += TB_SLOT_MIN) {
+    if (m % 60 === 0) {
+      const h = Math.floor(m / 60);
+      const suffix = h >= 12 ? 'PM' : 'AM';
+      let h12 = h % 12; if (h12 === 0) h12 = 12;
+      labelsHtml += `<div class="ro-hour-lbl" style="grid-column: span 2;">${h12}${suffix[0]}</div>`;
+    }
+  }
+  let linesHtml = '';
+  for (let i = 0; i < totalSlots; i++) {
+    linesHtml += `<div class="ro-vline${i % 2 === 0 ? '' : ' half'}" style="grid-column:${i+1};"></div>`;
+  }
+
+  const isToday = roDate === todayStr();
+  let nowLineHtml = '';
+  if (isToday) {
+    const now = new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    if (nowMinutes >= TB_START_MIN && nowMinutes < TB_END_MIN) {
+      const nowPx = (nowMinutes - TB_START_MIN) / TB_SLOT_MIN * RO_SLOT_PX;
+      nowLineHtml = `<div class="tb-now-line" style="left:${nowPx}px;"></div>`;
+    }
+  }
+
+  let blocksHtml = '';
+  busy.forEach(b => {
+    const startSlot = Math.max(0, (b.start - TB_START_MIN) / TB_SLOT_MIN);
+    const endSlot = Math.min(totalSlots, (b.end - TB_START_MIN) / TB_SLOT_MIN);
+    // Personal blocks only ever show the generic category label — the real title/note never
+    // even reaches this public mirror. IMCA/Riivet blocks show the real title when there's one.
+    const label = (b.category !== 'personal' && b.title) ? b.title : (RO_CATEGORY_LABELS[b.category] || 'Blocked');
+    blocksHtml += `<div class="ro-hblock ro-cat-block tb-${b.category || 'personal'}" style="grid-column: ${startSlot + 1} / ${endSlot + 1};" title="${escapeHtml(label)}">${escapeHtml(label)}</div>`;
+  });
+
+  area.innerHTML = `<div style="overflow-x:auto; -webkit-overflow-scrolling:touch;">
+    <div style="width:${trackWidth}px;">
+      <div class="ro-hlabels" style="grid-template-columns: repeat(${totalSlots}, ${RO_SLOT_PX}px); display:grid;">${labelsHtml}</div>
+      <div class="ro-hgrid" style="grid-template-columns: repeat(${totalSlots}, ${RO_SLOT_PX}px);">${linesHtml}${nowLineHtml}${blocksHtml}</div>
+    </div>
+  </div>`;
+}
+
+function daysInMonth(year, monthIndex) {
+  return new Date(year, monthIndex + 1, 0).getDate();
+}
+
+function matchesToday(template, today) {
+  const anchor = new Date(template.anchorDate + 'T00:00:00');
+  const diffDays = Math.floor((today - anchor) / 86400000);
+  if (diffDays < 0) return false;
+  // If specific weekdays were picked (time blocks only — task recurrence never sets this),
+  // match on those days instead of just the single anchor day.
+  if (template.daysOfWeek && template.daysOfWeek.length && (template.recurrence === 'weekly' || template.recurrence === 'biweekly')) {
+    if (!template.daysOfWeek.includes(today.getDay())) return false;
+    if (template.recurrence === 'weekly') return true;
+    // biweekly: only on every-other week, measured from the anchor's own week
+    const startOfWeek = d => { const c = new Date(d); c.setDate(c.getDate() - c.getDay()); c.setHours(0, 0, 0, 0); return c; };
+    const weeksBetween = Math.round((startOfWeek(today) - startOfWeek(anchor)) / (7 * 86400000));
+    return weeksBetween % 2 === 0;
+  }
+  switch (template.recurrence) {
+    case 'daily': return true;
+    case 'weekly': return diffDays % 7 === 0;
+    case 'biweekly': return diffDays % 14 === 0;
+    case 'monthly': {
+      const dim = daysInMonth(today.getFullYear(), today.getMonth());
+      const targetDay = Math.min(anchor.getDate(), dim);
+      return today.getDate() === targetDay;
+    }
+    case 'twicemonthly': {
+      const dim = daysInMonth(today.getFullYear(), today.getMonth());
+      return today.getDate() === 1 || today.getDate() === Math.min(15, dim);
+    }
+    default: return false;
+  }
+}
+
+function generateRecurringInstances() {
+  if (recurringTemplates.length === 0) return;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayKey = todayStr();
+  let changed = false;
+
+  recurringTemplates.forEach(template => {
+    if (!matchesToday(template, today)) return;
+    const alreadyExists = tasks.some(t => t.recurringId === template.id && t.due === todayKey);
+    if (alreadyExists) return;
+    tasks.push({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      title: template.title, sub: template.sub, priority: template.priority, due: todayKey,
+      completed: false, completedAt: null, recurringId: template.id
+    });
+    changed = true;
+  });
+
+  if (changed) saveTasks();
+}
+
+function generateRecurringTimeBlockInstances() {
+  if (recurringTimeBlockTemplates.length === 0) return;
+  let changed = false;
+
+  for (let i = 0; i <= TB_RECUR_HORIZON_DAYS; i++) {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + i);
+    const dateKey = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+
+    recurringTimeBlockTemplates.forEach(template => {
+      if (!matchesToday(template, d)) return;
+      const alreadyExists = timeBlocks.some(b => b.recurringId === template.id && b.date === dateKey);
+      if (alreadyExists) return;
+      timeBlocks.push({
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6) + i,
+        title: template.title, note: template.note, category: template.category,
+        date: dateKey, start: template.start, end: template.end,
+        taskId: null, recurringId: template.id
+      });
+      changed = true;
+    });
+  }
+
+  if (changed) saveTimeBlocks();
+}
+
+async function saveTasks() {
+  try { await dbSet('tasks', tasks); }
+  catch (e) { console.error('save tasks failed', e); }
+  syncPublicTasks();
+}
+async function saveStats() {
+  try { await dbSet('stats', stats); }
+  catch (e) { console.error('save stats failed', e); }
+}
+async function saveTemplates() {
+  try { await dbSet('templates', recurringTemplates); }
+  catch (e) { console.error('save templates failed', e); }
+}
+async function saveTimeBlocks() {
+  try { await dbSet('timeblocks', timeBlocks); }
+  catch (e) { console.error('save timeblocks failed', e); }
+  syncBusyTimes();
+}
+// Publishes this person's schedule shape for the read-only view and the availability checker.
+// IMCA/Riivet blocks include the real title (business-related, OK to surface); Personal blocks
+// never include a title or note here — that data never leaves the private timeblocks collection.
+async function syncBusyTimes() {
+  try {
+    const busy = timeBlocks.map(b => {
+      const entry = { date: b.date, start: b.start, end: b.end, category: b.category };
+      if (b.category !== 'personal') entry.title = b.title;
+      return entry;
+    });
+    await dbSet(`busyTimes/${currentUid}`, busy, true);
+  } catch (e) { console.error('sync busy times failed', e); }
+}
+// Publishes title, due date, priority, and completion status for every task — for the
+// read-only business-owner view. No notes, no submitter info. Completed tasks are included
+// deliberately (unlike the operator's own board) so progress stays visible there over time.
+async function syncPublicTasks() {
+  try {
+    const pub = tasks.map(t => ({ title: t.title, due: t.due || null, priority: t.priority, completed: !!t.completed }));
+    await dbSet(`publicTasks/${currentUid}`, pub, true);
+  } catch (e) { console.error('sync public tasks failed', e); }
+}
+async function saveTbTemplates() {
+  try { await dbSet('tbTemplates', recurringTimeBlockTemplates); }
+  catch (e) { console.error('save tb templates failed', e); }
+}
+
+function openModal(id) {
+  editingTaskId = id || null;
+  const task = editingTaskId ? tasks.find(x => x.id === editingTaskId) : null;
+
+  if (task) {
+    document.getElementById('taskModalTitle').textContent = 'Edit Task';
+    document.getElementById('inpTitle').value = task.title;
+    document.getElementById('inpSub').value = task.sub || '';
+    document.getElementById('inpDue').value = task.due || '';
+    pickPriority(task.priority);
+    document.getElementById('repeatFieldWrap').style.display = 'none';
+    document.getElementById('taskSaveBtn').textContent = 'Save Changes';
+    document.getElementById('modalDeleteWrap').style.display = 'flex';
+    document.getElementById('scheduleBtnWrap').style.display = 'block';
+    if (task.completed) {
+      document.getElementById('reactivateWrap').style.display = 'flex';
+      document.getElementById('inpReactivate').checked = false;
+    } else {
+      document.getElementById('reactivateWrap').style.display = 'none';
+    }
+  } else {
+    editingTaskId = null;
+    document.getElementById('taskModalTitle').textContent = 'New Task';
+    document.getElementById('inpTitle').value = '';
+    document.getElementById('inpSub').value = '';
+    document.getElementById('inpDue').value = todayStr();
+    pickPriority('medium');
+    pickRepeat('none');
+    document.getElementById('repeatFieldWrap').style.display = 'block';
+    document.getElementById('taskSaveBtn').textContent = 'Add to Board';
+    document.getElementById('modalDeleteWrap').style.display = 'none';
+    document.getElementById('scheduleBtnWrap').style.display = 'none';
+    document.getElementById('reactivateWrap').style.display = 'none';
+  }
+  document.getElementById('modalOverlay').classList.remove('hidden');
+  setTimeout(() => document.getElementById('inpTitle').focus(), 50);
+}
+function closeModal() {
+  document.getElementById('modalOverlay').classList.add('hidden');
+  editingTaskId = null;
+}
+function pickPriority(p) {
+  selectedPriority = p;
+  ['high','medium','low'].forEach(x => {
+    const el = document.getElementById('pp' + x[0].toUpperCase() + x.slice(1));
+    el.className = 'pp-btn' + (x === p ? ' active-' + p : '');
+  });
+}
+function pickRepeat(r) {
+  selectedRepeat = r;
+  ['none','daily','weekly','biweekly','monthly','twicemonthly'].forEach(x => {
+    const el = document.getElementById('rp' + x[0].toUpperCase() + x.slice(1));
+    el.className = 'pp-btn' + (x === r ? ' active-medium' : '');
+  });
+}
+
+function saveTask() {
+  const title = document.getElementById('inpTitle').value.trim();
+  if (!title) { document.getElementById('inpTitle').focus(); return; }
+  const sub = document.getElementById('inpSub').value.trim();
+  const due = document.getElementById('inpDue').value;
+
+  if (editingTaskId) {
+    const task = tasks.find(x => x.id === editingTaskId);
+    if (task) {
+      const reactivating = task.completed && document.getElementById('inpReactivate').checked;
+      // revert completion (and its points) using the priority it was completed under,
+      // before any priority edit below could change what gets credited/reverted
+      if (reactivating) toggleComplete(task.id);
+      task.title = title;
+      task.sub = sub;
+      task.priority = selectedPriority;
+      task.due = due;
+      saveTasks();
+    }
+    closeModal();
+    render();
+    return;
+  }
+
+  let recurringId = null;
+  if (selectedRepeat !== 'none') {
+    recurringId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    recurringTemplates.push({
+      id: recurringId, title, sub, priority: selectedPriority,
+      recurrence: selectedRepeat, anchorDate: due || todayStr()
+    });
+    saveTemplates();
+  }
+
+  tasks.push({
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+    title, sub, priority: selectedPriority, due,
+    completed: false, completedAt: null,
+    ...(recurringId ? { recurringId } : {})
+  });
+  saveTasks();
+  closeModal();
+  render();
+}
+
+function deleteFromModal() {
+  if (!editingTaskId) return;
+  deleteTask(editingTaskId);
+  closeModal();
+}
+
+function deleteTask(id) {
+  tasks = tasks.filter(t => t.id !== id);
+  saveTasks();
+  render();
+}
+
+function daysLate(dueStr, todayKey) {
+  if (!dueStr || dueStr >= todayKey) return 0;
+  const due = new Date(dueStr + 'T00:00:00');
+  const now = new Date(todayKey + 'T00:00:00');
+  return Math.floor((now - due) / 86400000);
+}
+
+function toggleComplete(id) {
+  const task = tasks.find(t => t.id === id);
+  if (!task) return;
+
+  if (stats.lastScoreDate !== todayStr()) {
+    stats.dailyScore = 0;
+    stats.lastScoreDate = todayStr();
+  }
+
+  if (!task.completed) {
+    const basePts = POINTS[task.priority] || 10;
+    const late = daysLate(task.due, todayStr());
+    const pts = Math.max(0, basePts - (late * 5));
+
+    task.completed = true;
+    task.completedAt = todayStr();
+    task.pointsAwarded = pts; // snapshot so undo/reactivate always reverses the exact amount, even if priority or due date changes later
+    stats.totalPoints += pts;
+    stats.dailyScore += pts;
+
+    // streak logic
+    if (stats.lastActiveDate !== todayStr()) {
+      if (stats.lastActiveDate === yesterdayStr()) {
+        stats.streak += 1;
+      } else {
+        stats.streak = 1;
+      }
+      stats.lastActiveDate = todayStr();
+    }
+    pulseStats();
+    lastCompletedId = id;
+    showUndoToast(task.title, pts, late);
+  } else {
+    task.completed = false;
+    const pts = (typeof task.pointsAwarded === 'number') ? task.pointsAwarded : (POINTS[task.priority] || 10);
+    stats.totalPoints = Math.max(0, stats.totalPoints - pts);
+    stats.dailyScore = Math.max(0, stats.dailyScore - pts);
+    delete task.pointsAwarded;
+    if (lastCompletedId === id) hideToast();
+  }
+  saveTasks();
+  saveStats();
+  render();
+}
+
+function pulseStats() {
+  ['dailyScoreNum','levelNum'].forEach(id => {
+    const el = document.getElementById(id);
+    el.classList.remove('pulse');
+    void el.offsetWidth;
+    el.classList.add('pulse');
+  });
+}
+
+function render() {
+  document.getElementById('todayDate').textContent = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  document.getElementById('dailyScoreNum').textContent = stats.dailyScore;
+  document.getElementById('streakNum').textContent = stats.streak;
+
+  const level = Math.floor(stats.totalPoints / LEVEL_STEP) + 1;
+  const into = stats.totalPoints % LEVEL_STEP;
+  document.getElementById('levelNum').textContent = level;
+  document.getElementById('levelProgressLbl').textContent = into + ' / ' + LEVEL_STEP;
+  document.getElementById('levelBarFill').style.width = (into / LEVEL_STEP * 100) + '%';
+
+  const today = todayStr();
+  const tomorrow = tomorrowStr();
+  const priOrder = { high: 0, medium: 1, low: 2 };
+  const cols = { today: [], tomorrow: [], upcoming: [] };
+
+  tasks.forEach(t => {
+    if (t.completed) {
+      // Only keep it visible (condensed, in place) through the day it was completed.
+      // Once that day has passed, it drops off the board entirely, same window as before.
+      if (t.completedAt !== today) return;
+    }
+    if (!t.due || t.due > tomorrow) cols.upcoming.push(t);
+    else if (t.due === tomorrow) cols.tomorrow.push(t);
+    else cols.today.push(t); // covers today and anything overdue
+  });
+
+  cols.today.sort((a, b) => (a.completed - b.completed) || (a.due || '').localeCompare(b.due || '') || priOrder[a.priority] - priOrder[b.priority]);
+  cols.tomorrow.sort((a, b) => (a.completed - b.completed) || priOrder[a.priority] - priOrder[b.priority]);
+  cols.upcoming.sort((a, b) => (a.completed - b.completed) || (a.due || '9999').localeCompare(b.due || '9999'));
+
+  function linkedBlockTag(t) {
+    const b = timeBlocks.find(b => b.date === today && b.taskId === t.id);
+    return b ? `<div class="tb-task-link">🕒 ${timeRangeLabel(b.start, b.end)}</div>` : '';
+  }
+
+  function taskRow(t) {
+    if (t.completed) {
+      return `<div class="card card-done"${isKioskMode ? '' : ` onclick="openModal('${t.id}')"`}>
+        <div class="done-title">${escapeHtml(t.title)}</div>
+      </div>`;
+    }
+    const isOverdue = t.due && t.due < today;
+    const isToday = t.due === today;
+    const open = expandedUpcomingId === t.id;
+    return `<div class="upcoming-row ${open ? 'open' : ''}">
+      <div class="upcoming-row-head" onclick="toggleTaskRow('${t.id}')">
+        <button class="check pri-${t.priority}" onclick="event.stopPropagation(); toggleComplete('${t.id}')"></button>
+        <span class="u-title">${escapeHtml(t.title)}${t.recurringId ? ' 🔁' : ''}</span>
+        <span class="u-due${isOverdue ? ' overdue-text' : ''}">${isOverdue ? 'OVERDUE' : (t.due ? fmtDate(t.due) : 'No date')}</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="upcoming-detail">
+        ${t.sub ? `<div class="card-sub">${escapeHtml(t.sub)}</div>` : `<div class="card-sub" style="opacity:0.6;">No additional details</div>`}
+        ${t.submittedBy ? `<div class="task-from">From ${escapeHtml(t.submittedBy)}</div>` : ''}
+        ${linkedBlockTag(t)}
+        <div class="detail-meta">
+          <span class="badge pri-${t.priority}">${t.priority[0].toUpperCase() + t.priority.slice(1)}</span>
+          ${t.due ? `<span class="badge ${isOverdue ? 'overdue-badge' : isToday ? 'today-badge' : 'due'}">${isOverdue ? 'OVERDUE · ' : isToday ? 'DUE TODAY · ' : 'Due '}${fmtDate(t.due)}</span>` : ''}
+          ${isKioskMode ? '' : `<button class="del-btn-full" onclick="event.stopPropagation(); openModal('${t.id}')">Edit</button>
+          <button class="del-btn-full" onclick="event.stopPropagation(); deleteTask('${t.id}')">Delete</button>`}
+        </div>
+      </div>
+    </div>`;
+  }
+
+  const colMeta = {
+    today: { label: 'Today', class: 'today' },
+    tomorrow: { label: 'Tomorrow', class: 'tomorrow' },
+    upcoming: { label: 'Upcoming', class: 'upcoming' }
+  };
+
+  let html = '<div class="lanes">';
+  ['today', 'tomorrow', 'upcoming'].forEach(key => {
+    const list = cols[key];
+    html += `<div class="lane ${colMeta[key].class}"><div class="lane-head"><span class="name">${colMeta[key].label}</span><span class="count">${list.length}</span></div>`;
+    if (list.length === 0) {
+      html += `<div class="empty-lane">Nothing here — nice work</div>`;
+    } else {
+      list.forEach(t => { html += taskRow(t); });
+    }
+    html += `</div>`;
+  });
+  html += '</div>';
+  document.getElementById('boardArea').innerHTML = html;
+
+  renderTimeBlocks();
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+/* ---------- PENDING QUEUE (main view) ---------- */
+async function loadPending() {
+  try {
+    const p = await dbGet('pending', true);
+    pendingQueue = p ? Object.values(p) : [];
+  } catch (e) { pendingQueue = []; }
+  renderPending();
+}
+async function savePending() {
+  try { await dbSet('pending', pendingQueue, true); }
+  catch (e) { console.error('save pending failed', e); }
+}
+// Handles both old single-assignee submissions and the new multi-assignee ones.
+function pendingUidsFor(p) {
+  return p.assignedToUids || (p.assignedToUid ? [p.assignedToUid] : []);
+}
+// Only removes the request from the shared queue once every person it was sent to has responded —
+// so one person accepting/rejecting doesn't make it vanish before the others even see it.
+function recordResponseAndMaybeRemove(p, decision) {
+  if (!p.responses) p.responses = {};
+  p.responses[currentUid] = decision;
+  const uids = pendingUidsFor(p);
+  const allResponded = uids.length === 0 || uids.every(uid => p.responses[uid]);
+  if (allResponded) {
+    pendingQueue = pendingQueue.filter(x => x.id !== p.id);
+  }
+}
+
+function renderPending() {
+  const section = document.getElementById('pendingSection');
+  if (isKioskMode) { section.style.display = 'none'; return; }
+  const mine = pendingQueue.filter(p => {
+    const uids = pendingUidsFor(p);
+    const alreadyHandled = p.responses && p.responses[currentUid];
+    return (uids.length === 0 || uids.includes(currentUid)) && !alreadyHandled;
+  });
+  document.getElementById('pendingCount').textContent = mine.length;
+  if (mine.length === 0) { section.style.display = 'none'; return; }
+  section.style.display = 'block';
+  document.getElementById('pendingList').innerHTML = mine.map(p => {
+    const otherNames = (p.assignedToNames || []).filter(n => n !== currentUserName);
+    return `
+    <div class="pending-card">
+      <div class="card-body">
+        <span class="from-badge">From ${escapeHtml(p.name)}</span>
+        <div class="card-title">${escapeHtml(p.title)}</div>
+        ${p.sub ? `<div class="card-sub">${escapeHtml(p.sub)}</div>` : ''}
+        ${p.suggestedDue ? `<div class="card-sub">Suggested due: ${fmtDate(p.suggestedDue)}</div>` : ''}
+        ${p.wantsTime ? `<div class="card-sub">🕒 Requested: ${fmtDate(p.reqDate)}, ${fmtMinutes(p.reqStart)}–${fmtMinutes(p.reqEnd)}</div>` : ''}
+        ${otherNames.length ? `<div class="card-sub">Also sent to: ${escapeHtml(otherNames.join(', '))}</div>` : ''}
+      </div>
+      <div class="pending-actions">
+        <button class="btn-accept" onclick="openLabelModal('${p.id}')">Accept</button>
+        <button class="btn-reject" onclick="rejectPending('${p.id}')">Reject</button>
+      </div>
+    </div>
+  `;
+  }).join('');
+}
+function rejectPending(id) {
+  const p = pendingQueue.find(x => x.id === id);
+  if (!p) return;
+  recordResponseAndMaybeRemove(p, 'rejected');
+  savePending();
+  renderPending();
+}
+function openLabelModal(id) {
+  const p = pendingQueue.find(x => x.id === id);
+  if (!p) return;
+  acceptingId = id;
+  document.getElementById('labelTaskTitle').textContent = p.title;
+  if (p.sub) {
+    document.getElementById('labelSubWrap').style.display = 'block';
+    document.getElementById('labelTaskSub').textContent = p.sub;
+  } else {
+    document.getElementById('labelSubWrap').style.display = 'none';
+  }
+  document.getElementById('labelTaskFrom').textContent = p.name;
+  if (p.wantsTime && p.reqDate) {
+    document.getElementById('labelTimeWrap').style.display = 'block';
+    document.getElementById('labelTimeInfo').textContent = `${fmtDate(p.reqDate)}, ${fmtMinutes(p.reqStart)} – ${fmtMinutes(p.reqEnd)}`;
+  } else {
+    document.getElementById('labelTimeWrap').style.display = 'none';
+  }
+  document.getElementById('labelDue').value = p.suggestedDue || todayStr();
+  pickLabelPriority('medium');
+  document.getElementById('labelModalOverlay').classList.remove('hidden');
+}
+function closeLabelModal() {
+  document.getElementById('labelModalOverlay').classList.add('hidden');
+  acceptingId = null;
+}
+function pickLabelPriority(p) {
+  labelPriority = p;
+  ['high', 'medium', 'low'].forEach(x => {
+    const el = document.getElementById('lpp' + x[0].toUpperCase() + x.slice(1));
+    el.className = 'pp-btn' + (x === p ? ' active-' + p : '');
+  });
+}
+function confirmAccept() {
+  const p = pendingQueue.find(x => x.id === acceptingId);
+  if (!p) return;
+  const due = document.getElementById('labelDue').value;
+  const newTaskId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  tasks.push({
+    id: newTaskId, title: p.title, sub: p.sub, priority: labelPriority, due,
+    completed: false, completedAt: null, submittedBy: p.name
+  });
+  saveTasks();
+
+  const hadTimeRequest = p.wantsTime && p.reqDate;
+  if (hadTimeRequest) {
+    timeBlocks.push({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      title: p.title, note: `Requested by ${p.name}`, category: 'personal',
+      date: p.reqDate, start: p.reqStart, end: p.reqEnd, taskId: newTaskId
+    });
+    saveTimeBlocks();
+    tbViewDate = p.reqDate; // jump the Time Blocks view straight to the day this landed on
+  }
+
+  recordResponseAndMaybeRemove(p, 'accepted');
+  savePending();
+  closeLabelModal();
+  render();
+  renderPending();
+
+  // Scroll the timeline so the newly-added block is actually visible, not just present off-screen.
+  if (hadTimeRequest) {
+    requestAnimationFrame(() => {
+      const scroller = document.getElementById('tbHscroll');
+      if (scroller && typeof tbLastEffectiveStart === 'number') {
+        const px = Math.max(0, (p.reqStart - tbLastEffectiveStart) / TB_SLOT_MIN * TB_SLOT_PX - TB_SLOT_PX);
+        scroller.scrollLeft = px;
+      }
+    });
+  }
+}
+
+const RECURRENCE_LABELS = {
+  daily: 'Repeats daily',
+  weekly: 'Repeats weekly',
+  biweekly: 'Repeats every 2 weeks',
+  monthly: 'Repeats monthly',
+  twicemonthly: 'Repeats twice a month'
+};
+
+function openRecurringModal() {
+  renderRecurringList();
+  document.getElementById('recurringModalOverlay').classList.remove('hidden');
+}
+function closeRecurringModal() {
+  document.getElementById('recurringModalOverlay').classList.add('hidden');
+}
+function renderRecurringList() {
+  const el = document.getElementById('recurringList');
+  if (recurringTemplates.length === 0) {
+    el.innerHTML = `<div class="no-recurring">No repeating tasks set up yet. Add one from "+ Add Task" and pick a Repeat option.</div>`;
+    return;
+  }
+  el.innerHTML = recurringTemplates.map(t => `
+    <div class="recurring-item">
+      <div>
+        <div class="rtitle">${escapeHtml(t.title)}</div>
+        <div class="rmeta">${RECURRENCE_LABELS[t.recurrence] || t.recurrence} · started ${fmtDate(t.anchorDate)}</div>
+      </div>
+      <button class="stop-btn" onclick="stopRecurring('${t.id}')">Stop</button>
+    </div>
+  `).join('');
+}
+function stopRecurring(id) {
+  recurringTemplates = recurringTemplates.filter(t => t.id !== id);
+  saveTemplates();
+  renderRecurringList();
+}
+
+function openTbRecurringModal() {
+  renderTbRecurringList();
+  document.getElementById('tbRecurringModalOverlay').classList.remove('hidden');
+}
+function closeTbRecurringModal() {
+  document.getElementById('tbRecurringModalOverlay').classList.add('hidden');
+}
+function renderTbRecurringList() {
+  const el = document.getElementById('tbRecurringList');
+  if (recurringTimeBlockTemplates.length === 0) {
+    el.innerHTML = `<div class="no-recurring">No repeating time blocks yet. Add one from "+ Add Time Block" and pick a Repeat option.</div>`;
+    return;
+  }
+  const DOW_ABBR = ['Sun', 'M', 'Tu', 'W', 'Th', 'F', 'Sat'];
+  el.innerHTML = recurringTimeBlockTemplates.map(t => {
+    const dowText = (t.daysOfWeek && t.daysOfWeek.length) ? ` (${t.daysOfWeek.slice().sort().map(d => DOW_ABBR[d]).join(', ')})` : '';
+    return `
+    <div class="recurring-item">
+      <div>
+        <div class="rtitle">${escapeHtml(t.title)}</div>
+        <div class="rmeta">${RECURRENCE_LABELS[t.recurrence] || t.recurrence}${dowText} · ${timeRangeLabel(t.start, t.end)} · started ${fmtDate(t.anchorDate)}</div>
+      </div>
+      <div style="display:flex; gap:6px;">
+        <button class="stop-btn" onclick="stopTbRecurring('${t.id}')" title="Stops future copies — keeps everything already generated">Stop</button>
+        <button class="stop-btn" style="border-color:var(--high); color:var(--high);" onclick="deleteEntireSeries('${t.id}', '${escapeHtml(t.title)}')" title="Removes the series AND every copy it has already generated">Delete All</button>
+      </div>
+    </div>
+  `;
+  }).join('');
+}
+function stopTbRecurring(id) {
+  recurringTimeBlockTemplates = recurringTimeBlockTemplates.filter(t => t.id !== id);
+  saveTbTemplates();
+  renderTbRecurringList();
+}
+
+/* ---------- DESTRUCTIVE ACTION CONFIRMATION (reuses the Submission Access Code as a safety check) ---------- */
+let pendingDestructiveAction = null;
+async function requestDestructiveConfirm(title, message, actionFn) {
+  let code = null;
+  try { code = await dbGet('settings/submitCode', true); } catch (e) { code = null; }
+  if (!code) {
+    // No code has been set up — fall back to a plain confirmation instead of blocking the feature.
+    if (confirm(message + '\n\nNo Submission Access Code is set, so this is a plain confirmation instead.')) actionFn();
+    return;
+  }
+  pendingDestructiveAction = { fn: actionFn, code };
+  document.getElementById('confirmCodeTitle').textContent = title;
+  document.getElementById('confirmCodeMessage').textContent = message;
+  document.getElementById('confirmCodeInput').value = '';
+  document.getElementById('confirmCodeModalOverlay').classList.remove('hidden');
+  setTimeout(() => document.getElementById('confirmCodeInput').focus(), 50);
+}
+function closeConfirmCodeModal() {
+  document.getElementById('confirmCodeModalOverlay').classList.add('hidden');
+  pendingDestructiveAction = null;
+}
+function runConfirmedAction() {
+  if (!pendingDestructiveAction) return;
+  const entered = document.getElementById('confirmCodeInput').value.trim();
+  if (entered.toLowerCase() !== String(pendingDestructiveAction.code).trim().toLowerCase()) {
+    alert("That code doesn't match — nothing was deleted.");
+    return;
+  }
+  const fn = pendingDestructiveAction.fn;
+  closeConfirmCodeModal();
+  fn();
+}
+function clearAllTimeBlocks() {
+  requestDestructiveConfirm(
+    'Clear All Time Blocks',
+    'This permanently deletes every time block on your board — including all repeating series — for every day, past and future. This cannot be undone.',
+    () => {
+      timeBlocks = [];
+      recurringTimeBlockTemplates = [];
+      saveTimeBlocks();
+      saveTbTemplates();
+      render();
+    }
+  );
+}
+function deleteEntireSeries(templateId, title) {
+  requestDestructiveConfirm(
+    'Delete Repeating Series',
+    `This permanently deletes "${title}" and every copy it has already generated — past and future. This cannot be undone.`,
+    () => {
+      recurringTimeBlockTemplates = recurringTimeBlockTemplates.filter(t => t.id !== templateId);
+      timeBlocks = timeBlocks.filter(b => b.recurringId !== templateId);
+      saveTbTemplates();
+      saveTimeBlocks();
+      render();
+      renderTbRecurringList();
+    }
+  );
+}
+
+/* ---------- TIME BLOCKING ---------- */
+function fmtMinutes(mins) {
+  let h = Math.floor(mins / 60);
+  const m = mins % 60;
+  const suffix = h >= 12 ? 'PM' : 'AM';
+  let h12 = h % 12;
+  if (h12 === 0) h12 = 12;
+  if (h === 24) { h12 = 12; }
+  return `${h12}:${String(m).padStart(2,'0')} ${suffix}`;
+}
+function timeRangeLabel(start, end) {
+  return `${fmtMinutes(start)} – ${fmtMinutes(end)}`;
+}
+function populateTimeSelects() {
+  const startSel = document.getElementById('tbStart');
+  const endSel = document.getElementById('tbEnd');
+  startSel.innerHTML = '';
+  endSel.innerHTML = '';
+  for (let m = TB_START_MIN; m < TB_END_MIN; m += TB_SLOT_MIN) {
+    startSel.innerHTML += `<option value="${m}">${fmtMinutes(m)}</option>`;
+  }
+  for (let m = TB_START_MIN + TB_SLOT_MIN; m <= TB_END_MIN; m += TB_SLOT_MIN) {
+    endSel.innerHTML += `<option value="${m}">${fmtMinutes(m)}</option>`;
+  }
+}
+function populateTaskLinkSelect(preselectId) {
+  const sel = document.getElementById('tbTaskLink');
+  const active = tasks.filter(t => !t.completed);
+  sel.innerHTML = '<option value="">None</option>' + active.map(t =>
+    `<option value="${t.id}">${escapeHtml(t.title)}</option>`
+  ).join('');
+  sel.value = preselectId || '';
+}
+function setTbViewDate(v) {
+  if (!v) return;
+  tbViewDate = v;
+  renderTimeBlocks();
+}
+function shiftTbViewDate(deltaDays) {
+  const d = new Date(tbViewDate + 'T00:00:00');
+  d.setDate(d.getDate() + deltaDays);
+  tbViewDate = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  renderTimeBlocks();
+}
+function checkDayRollover() {
+  const nowToday = todayStr();
+  if (nowToday === lastKnownToday) return;
+  // Only nudge the view forward if it was sitting on "today" — never yank someone
+  // off a day they deliberately navigated to ahead of time.
+  if (tbViewDate === lastKnownToday) tbViewDate = nowToday;
+  lastKnownToday = nowToday;
+  loadDailyQuote();
+}
+function onLinkTaskChange() {
+  const linkVal = document.getElementById('tbTaskLink').value;
+  const cb = document.getElementById('tbAlsoTask');
+  if (linkVal) {
+    cb.checked = false;
+    cb.disabled = true;
+    document.getElementById('tbTaskDueWrap').style.display = 'none';
+  } else {
+    cb.disabled = false;
+  }
+}
+function toggleTbTaskDue() {
+  const cb = document.getElementById('tbAlsoTask');
+  const linkSel = document.getElementById('tbTaskLink');
+  if (cb.checked) {
+    linkSel.value = '';
+    linkSel.disabled = true;
+    document.getElementById('tbTaskDueWrap').style.display = 'block';
+    document.getElementById('tbTaskDue').value = document.getElementById('tbDate').value || tbViewDate;
+  } else {
+    linkSel.disabled = false;
+    document.getElementById('tbTaskDueWrap').style.display = 'none';
+  }
+}
+function pickCategory(c) {
+  selectedCategory = c;
+  ['personal', 'imca', 'riivet'].forEach(x => {
+    const el = document.getElementById('cat' + x[0].toUpperCase() + x.slice(1));
+    el.className = 'cat-btn' + (x === c ? ' active-' + c : '');
+  });
+}
+function pickTbRepeat(r) {
+  selectedTbRepeat = r;
+  ['none','daily','weekly','biweekly','monthly','twicemonthly'].forEach(x => {
+    const el = document.getElementById('tbRp' + x[0].toUpperCase() + x.slice(1));
+    el.className = 'pp-btn' + (x === r ? ' active-medium' : '');
+  });
+  const dowWrap = document.getElementById('tbDowWrap');
+  if (r === 'weekly' || r === 'biweekly') {
+    dowWrap.style.display = 'block';
+    // default-check the day matching the selected date, so single-day behavior still works out of the box
+    const anyChecked = Array.from(document.querySelectorAll('.tb-dow-check')).some(cb => cb.checked);
+    if (!anyChecked) {
+      const dateVal = document.getElementById('tbDate').value;
+      if (dateVal) {
+        const dow = new Date(dateVal + 'T00:00:00').getDay();
+        const cb = document.querySelector(`.tb-dow-check[value="${dow}"]`);
+        if (cb) cb.checked = true;
+      }
+    }
+  } else {
+    dowWrap.style.display = 'none';
+  }
+}
+function openTimeBlockModal(id, prefill) {
+  editingTbId = id || null;
+  const block = editingTbId ? timeBlocks.find(b => b.id === editingTbId) : null;
+  populateTimeSelects();
+
+  // reset the "also add as task" state before branching so it never leaks between opens
+  document.getElementById('tbAlsoTask').checked = false;
+  document.getElementById('tbAlsoTask').disabled = false;
+  document.getElementById('tbTaskDueWrap').style.display = 'none';
+  document.getElementById('tbTaskLink').disabled = false;
+  document.querySelectorAll('.tb-dow-check').forEach(cb => cb.checked = false);
+
+  if (block) {
+    document.getElementById('tbModalTitle').textContent = 'Edit Time Block';
+    document.getElementById('tbTitle').value = block.title;
+    document.getElementById('tbNote').value = block.note || '';
+    document.getElementById('tbDate').value = block.date || tbViewDate;
+    document.getElementById('tbRepeatFieldWrap').style.display = 'none';
+    document.getElementById('tbDowWrap').style.display = 'none';
+    document.getElementById('tbRecurNote').style.display = block.recurringId ? 'block' : 'none';
+    pickCategory(block.category);
+    document.getElementById('tbStart').value = block.start;
+    document.getElementById('tbEnd').value = block.end;
+    populateTaskLinkSelect(block.taskId || '');
+    onLinkTaskChange();
+    document.getElementById('tbSaveBtn').textContent = 'Save Changes';
+    document.getElementById('tbDeleteWrap').style.display = 'flex';
+  } else {
+    document.getElementById('tbModalTitle').textContent = 'New Time Block';
+    document.getElementById('tbTitle').value = prefill && prefill.title ? prefill.title : '';
+    document.getElementById('tbNote').value = '';
+    document.getElementById('tbDate').value = (prefill && prefill.date) ? prefill.date : tbViewDate;
+    document.getElementById('tbRepeatFieldWrap').style.display = 'block';
+    document.getElementById('tbRecurNote').style.display = 'none';
+    pickTbRepeat('none');
+    pickCategory('personal');
+    // default to the next free half-hour slot after 8am, so it's a sane starting point
+    document.getElementById('tbStart').value = TB_START_MIN;
+    document.getElementById('tbEnd').value = TB_START_MIN + TB_SLOT_MIN;
+    populateTaskLinkSelect(prefill && prefill.taskId ? prefill.taskId : '');
+    onLinkTaskChange();
+    document.getElementById('tbSaveBtn').textContent = 'Add Block';
+    document.getElementById('tbDeleteWrap').style.display = 'none';
+  }
+  document.getElementById('timeblockModalOverlay').classList.remove('hidden');
+  setTimeout(() => document.getElementById('tbTitle').focus(), 50);
+}
+function closeTimeBlockModal() {
+  document.getElementById('timeblockModalOverlay').classList.add('hidden');
+  editingTbId = null;
+}
+function scheduleTaskTimeBlock() {
+  if (!editingTaskId) return;
+  const task = tasks.find(t => t.id === editingTaskId);
+  if (!task) return;
+  closeModal();
+  openTimeBlockModal(null, { title: task.title, taskId: task.id, date: task.due || tbViewDate });
+}
+function saveTimeBlock() {
+  const title = document.getElementById('tbTitle').value.trim();
+  if (!title) { document.getElementById('tbTitle').focus(); return; }
+  const note = document.getElementById('tbNote').value.trim();
+  const date = document.getElementById('tbDate').value || tbViewDate;
+  const start = parseInt(document.getElementById('tbStart').value, 10);
+  const end = parseInt(document.getElementById('tbEnd').value, 10);
+  let taskId = document.getElementById('tbTaskLink').value || null;
+  const alsoTask = document.getElementById('tbAlsoTask').checked;
+  const taskDue = document.getElementById('tbTaskDue').value;
+
+  if (end <= start) {
+    alert('End time needs to be after the start time.');
+    return;
+  }
+  if (alsoTask && !taskDue) {
+    document.getElementById('tbTaskDue').focus();
+    return;
+  }
+
+  let createdTask = false;
+  if (alsoTask && !taskId) {
+    const newTaskId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    tasks.push({
+      id: newTaskId, title, sub: note, priority: 'medium', due: taskDue,
+      completed: false, completedAt: null
+    });
+    taskId = newTaskId;
+    createdTask = true;
+  }
+
+  if (editingTbId) {
+    const block = timeBlocks.find(b => b.id === editingTbId);
+    if (block) {
+      block.title = title;
+      block.note = note;
+      block.category = selectedCategory;
+      block.date = date;
+      block.start = start;
+      block.end = end;
+      block.taskId = taskId;
+      // recurringId intentionally left untouched: editing an instance never
+      // touches the series it came from — this day only.
+    }
+  } else {
+    const newBlockId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    let recurringId = null;
+    if (selectedTbRepeat !== 'none') {
+      let daysOfWeek = null;
+      if (selectedTbRepeat === 'weekly' || selectedTbRepeat === 'biweekly') {
+        daysOfWeek = Array.from(document.querySelectorAll('.tb-dow-check:checked')).map(cb => parseInt(cb.value, 10));
+        if (daysOfWeek.length === 0) daysOfWeek = null; // nothing checked — falls back to anchor-day-only behavior
+      }
+      recurringId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6) + 'r';
+      recurringTimeBlockTemplates.push({
+        id: recurringId, title, note, category: selectedCategory,
+        start, end, recurrence: selectedTbRepeat, anchorDate: date,
+        ...(daysOfWeek ? { daysOfWeek } : {})
+      });
+      saveTbTemplates();
+    }
+    timeBlocks.push({
+      id: newBlockId, title, note, category: selectedCategory, date,
+      start, end, taskId,
+      ...(recurringId ? { recurringId } : {})
+    });
+    if (recurringId) generateRecurringTimeBlockInstances();
+  }
+  if (createdTask) saveTasks();
+  saveTimeBlocks();
+  closeTimeBlockModal();
+  render();
+}
+function deleteFromTbModal() {
+  if (!editingTbId) return;
+  timeBlocks = timeBlocks.filter(b => b.id !== editingTbId);
+  saveTimeBlocks();
+  closeTimeBlockModal();
+  render();
+}
+
+let tbLastViewDate = null;
+let tbLastEffectiveStart = null;
+
+function renderTimeBlocks() {
+  const area = document.getElementById('timeblockArea');
+  const viewIsToday = tbViewDate === todayStr();
+  const prevScroller = document.getElementById('tbHscroll');
+  const prevScrollLeft = prevScroller ? prevScroller.scrollLeft : 0;
+
+  const dateInput = document.getElementById('tbViewDateInput');
+  if (dateInput.value !== tbViewDate) dateInput.value = tbViewDate;
+  document.getElementById('tbSectionLabel').textContent = viewIsToday
+    ? "Today's Time Blocks"
+    : new Date(tbViewDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+
+  const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+  // Only clip out "already happened" slots when we're looking at today.
+  // Any other day shows the full 8am-midnight board so you can plan ahead.
+  let effectiveStart = TB_START_MIN;
+  if (viewIsToday && nowMinutes > TB_START_MIN) {
+    effectiveStart = Math.min(TB_END_MIN, Math.floor(nowMinutes / TB_SLOT_MIN) * TB_SLOT_MIN);
+  }
+
+  if (viewIsToday && effectiveStart >= TB_END_MIN) {
+    area.innerHTML = `<div class="tb-empty-msg">That's it for today — nothing left on the clock.</div>`;
+    return;
+  }
+
+  const blocks = timeBlocks
+    .filter(b => b.date === tbViewDate && (!viewIsToday || b.end > nowMinutes))
+    .sort((a, b) => a.start - b.start);
+
+  const totalSlots = (TB_END_MIN - effectiveStart) / TB_SLOT_MIN;
+  const trackWidth = totalSlots * TB_SLOT_PX;
+
+  let labelsHtml = '';
+  for (let m = effectiveStart; m < TB_END_MIN; m += TB_SLOT_MIN) {
+    if (m % 60 === 0) {
+      const h = Math.floor(m / 60);
+      const suffix = h >= 12 ? 'PM' : 'AM';
+      let h12 = h % 12; if (h12 === 0) h12 = 12;
+      labelsHtml += `<div class="tb-hour-lbl-h" style="grid-column: span 2;">${h12} ${suffix}</div>`;
+    }
+  }
+
+  let linesHtml = '';
+  for (let i = 0; i < totalSlots; i++) {
+    const slotStartsAtHour = (effectiveStart + i * TB_SLOT_MIN) % 60 === 0;
+    linesHtml += `<div class="tb-vline${slotStartsAtHour ? '' : ' half'}" style="grid-column:${i+1};"></div>`;
+  }
+
+  // Show exactly where "now" sits on the timeline, for today only.
+  let nowLineHtml = '';
+  if (viewIsToday && nowMinutes >= effectiveStart && nowMinutes < TB_END_MIN) {
+    const nowPx = (nowMinutes - effectiveStart) / TB_SLOT_MIN * TB_SLOT_PX;
+    nowLineHtml = `<div class="tb-now-line" style="left:${nowPx}px;"></div>`;
+  }
+
+  let blocksHtml = '';
+  blocks.forEach(b => {
+    const visibleStart = Math.max(b.start, effectiveStart);
+    const startSlot = Math.max(0, (visibleStart - effectiveStart) / TB_SLOT_MIN);
+    const endSlot = Math.min(totalSlots, (b.end - effectiveStart) / TB_SLOT_MIN);
+    const linkedTask = b.taskId ? tasks.find(t => t.id === b.taskId) : null;
+    const clickAttr = isKioskMode ? '' : ` onclick="openTimeBlockModal('${b.id}')"`;
+    const cursorStyle = isKioskMode ? 'cursor:default;' : '';
+    const gridStyle = `grid-column: ${startSlot + 1} / ${endSlot + 1}; ${cursorStyle}`;
+
+    if (linkedTask && linkedTask.completed) {
+      blocksHtml += `<div class="tb-hblock tb-done" style="${gridStyle}"${clickAttr}>
+        <div class="tb-htitle">${escapeHtml(b.title)} – COMPLETED</div>
+      </div>`;
+      return;
+    }
+
+    const inProgress = viewIsToday && b.start <= nowMinutes;
+    const isCompact = (b.end - b.start) <= TB_SLOT_MIN;
+    blocksHtml += `<div class="tb-hblock tb-${b.category}${inProgress ? ' tb-inprogress' : ''}" style="${gridStyle}"${clickAttr}>
+      <div class="tb-htitle">${escapeHtml(b.title)}${b.recurringId ? ' 🔁' : ''}${inProgress ? ' <span class="tb-now-tag">NOW</span>' : ''}</div>
+      ${(!isCompact && b.note) ? `<div class="tb-hnote">${escapeHtml(b.note)}</div>` : ''}
+    </div>`;
+  });
+
+  const emptyMsg = blocks.length === 0
+    ? `<div class="tb-empty-msg">${viewIsToday ? 'Nothing left on the clock for today.' : 'No time blocks scheduled for this day yet.'}</div>` : '';
+
+  area.innerHTML = `<div class="tb-hscroll" id="tbHscroll">
+    <div style="width:${trackWidth}px;">
+      <div class="tb-hlabels" style="grid-template-columns: repeat(${totalSlots}, ${TB_SLOT_PX}px); display:grid;">${labelsHtml}</div>
+      <div class="tb-hgrid" style="grid-template-columns: repeat(${totalSlots}, ${TB_SLOT_PX}px);">${linesHtml}${nowLineHtml}${blocksHtml}</div>
+    </div>
+  </div>
+  ${emptyMsg}
+  <div class="tb-hscroll-nav">
+    <button onclick="scrollTbHours(-4)">← Earlier</button>
+    <button onclick="scrollTbHours(4)">Later →</button>
+  </div>`;
+
+  // Only snap back to "now" (or 8am) when the day or the reference frame has actually
+  // shifted — otherwise the frequent background refresh would yank you back to the
+  // start every minute even if you'd deliberately scrolled ahead to look further out.
+  requestAnimationFrame(() => {
+    const scroller = document.getElementById('tbHscroll');
+    if (!scroller) return;
+    const sameContext = tbLastViewDate === tbViewDate && tbLastEffectiveStart === effectiveStart;
+    scroller.scrollLeft = sameContext ? prevScrollLeft : 0;
+    tbLastViewDate = tbViewDate;
+    tbLastEffectiveStart = effectiveStart;
+  });
+}
+function scrollTbHours(hours) {
+  const el = document.getElementById('tbHscroll');
+  if (!el) return;
+  el.scrollBy({ left: hours * 2 * TB_SLOT_PX, behavior: 'smooth' });
+}
+
+function copyKioskLink() {
+  const url = location.origin + location.pathname + '?kiosk=1';
+  document.getElementById('linkModalTitle').textContent = 'Kiosk Link';
+  document.getElementById('linkModalLabel').textContent = 'Open this on a tablet — signing in there shows your own board in view/tap-only mode';
+  const input = document.getElementById('linkDisplay');
+  input.value = url;
+  document.getElementById('linkModalOverlay').classList.remove('hidden');
+  setTimeout(() => input.select(), 50);
+}
+function copyTeamLink() {
+  const url = location.origin + location.pathname + '?submit=1';
+  document.getElementById('linkModalTitle').textContent = 'Team Submission Link';
+  document.getElementById('linkModalLabel').textContent = 'Send this to your team';
+  const input = document.getElementById('linkDisplay');
+  input.value = url;
+  document.getElementById('linkModalOverlay').classList.remove('hidden');
+  setTimeout(() => input.select(), 50);
+}
+function copyMyViewLink() {
+  const url = location.origin + location.pathname + '?view=1&who=' + currentUid;
+  document.getElementById('linkModalTitle').textContent = 'Your View-Only Link';
+  document.getElementById('linkModalLabel').textContent = 'Share this with anyone who just needs to see your board';
+  const input = document.getElementById('linkDisplay');
+  input.value = url;
+  document.getElementById('linkModalOverlay').classList.remove('hidden');
+  setTimeout(() => input.select(), 50);
+}
+function closeLinkModal() {
+  document.getElementById('linkModalOverlay').classList.add('hidden');
+}
+function copyLinkFromModal() {
+  const input = document.getElementById('linkDisplay');
+  input.select();
+  input.setSelectionRange(0, 99999);
+  let copied = false;
+  try { copied = document.execCommand('copy'); } catch (e) { copied = false; }
+  const btn = event.target;
+  const orig = btn.textContent;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(input.value).catch(() => {});
+  }
+  btn.textContent = copied ? '✓ Copied!' : 'Selected — press Ctrl/Cmd+C';
+  setTimeout(() => { btn.textContent = orig; }, 2000);
+}
+
+/* ---------- TEAM SUBMIT VIEW ---------- */
+let directoryList = []; // [{uid, name}] — pulled from the public directory
+
+let requiredSubmitCode = null; // fetched once per visit; null/empty means no code is required
+async function initSubmitView() {
+  try {
+    const n = localStorage.getItem('submitterName');
+    if (n) document.getElementById('subName').value = n;
+  } catch (e) { /* no saved name yet */ }
+  try {
+    const dir = await dbGet('directory', true);
+    directoryList = dir ? Object.keys(dir).map(uid => ({ uid, name: (dir[uid] || {}).name || 'Unknown' })) : [];
+  } catch (e) { directoryList = []; }
+  document.getElementById('subAssigneeList').innerHTML = directoryList.map(d => `
+    <label class="assignee-row">
+      <input type="checkbox" class="assignee-check" value="${d.uid}" data-name="${escapeHtml(d.name)}" onchange="refreshAvailability()">
+      ${escapeHtml(d.name)}
+    </label>
+  `).join('') || '<div class="ro-empty">No team members yet.</div>';
+  const preselectUid = urlParams.get('who');
+  if (preselectUid) {
+    const cb = document.querySelector(`.assignee-check[value="${preselectUid}"]`);
+    if (cb) cb.checked = true;
+  }
+  try {
+    requiredSubmitCode = await dbGet('settings/submitCode', true);
+  } catch (e) { requiredSubmitCode = null; }
+  document.getElementById('subCodeWrap').style.display = requiredSubmitCode ? 'block' : 'none';
+}
+function getSelectedAssignees() {
+  return Array.from(document.querySelectorAll('.assignee-check:checked'))
+    .map(cb => ({ uid: cb.value, name: cb.dataset.name }));
+}
+
+function toggleSubTimeRequest() {
+  const show = document.getElementById('subNeedsTime').checked;
+  document.getElementById('subTimeWrap').style.display = show ? 'block' : 'none';
+  if (show) refreshAvailability();
+}
+
+// Reads every selected person's public busy/free mirror and only offers start times where
+// the full requested duration fits with nothing on ANY of their calendars — since a request
+// sent to multiple people is treated as needing everyone available at once.
+async function refreshAvailability() {
+  const startSel = document.getElementById('subTimeStart');
+  if (!document.getElementById('subNeedsTime').checked) return;
+  const assignees = getSelectedAssignees();
+  const date = document.getElementById('subTimeDate').value;
+  const duration = parseInt(document.getElementById('subDuration').value, 10);
+  if (assignees.length === 0 || !date) {
+    startSel.innerHTML = '<option value="">Select at least one person and a date first</option>';
+    return;
+  }
+  startSel.innerHTML = '<option value="">Checking availability…</option>';
+
+  let allBusy = [];
+  for (const a of assignees) {
+    try {
+      const b = await dbGet(`busyTimes/${a.uid}`, true);
+      allBusy = allBusy.concat((b ? Object.values(b) : []).filter(x => x.date === date));
+    } catch (e) { /* treat as no data for this person */ }
+  }
+
+  const merged = [];
+  allBusy.sort((a, b) => a.start - b.start);
+  allBusy.forEach(b => {
+    if (merged.length && b.start <= merged[merged.length - 1].end) {
+      merged[merged.length - 1].end = Math.max(merged[merged.length - 1].end, b.end);
+    } else {
+      merged.push({ start: b.start, end: b.end });
+    }
+  });
+
+  const openStarts = [];
+  for (let t = TB_START_MIN; t + duration <= TB_END_MIN; t += TB_SLOT_MIN) {
+    const slotEnd = t + duration;
+    const overlaps = merged.some(m => t < m.end && slotEnd > m.start);
+    if (!overlaps) openStarts.push(t);
+  }
+
+  startSel.innerHTML = openStarts.length === 0
+    ? '<option value="">No time works for everyone selected that day</option>'
+    : openStarts.map(t => `<option value="${t}">${fmtMinutes(t)}</option>`).join('');
+}
+
+async function submitPendingTask() {
+  const name = document.getElementById('subName').value.trim();
+  const assignees = getSelectedAssignees();
+  const title = document.getElementById('subTitle').value.trim();
+  if (!name) { document.getElementById('subName').focus(); return; }
+  if (assignees.length === 0) { document.getElementById('subAssigneeList').scrollIntoView({ behavior: 'smooth' }); return; }
+  if (!title) { document.getElementById('subTitle').focus(); return; }
+  const sub = document.getElementById('subSub').value.trim();
+  const due = document.getElementById('subDue').value;
+
+  const codeErrEl = document.getElementById('subCodeError');
+  codeErrEl.style.display = 'none';
+  if (requiredSubmitCode) {
+    const entered = document.getElementById('subAccessCode').value.trim();
+    if (entered.toLowerCase() !== String(requiredSubmitCode).trim().toLowerCase()) {
+      codeErrEl.textContent = "That code doesn't match — check with the team and try again.";
+      codeErrEl.style.display = 'block';
+      document.getElementById('subAccessCode').focus();
+      return;
+    }
+  }
+
+  let timeInfo = { wantsTime: false };
+  if (document.getElementById('subNeedsTime').checked) {
+    const reqDate = document.getElementById('subTimeDate').value;
+    const reqStartVal = document.getElementById('subTimeStart').value;
+    const reqDuration = parseInt(document.getElementById('subDuration').value, 10);
+    if (!reqDate || reqStartVal === '') { document.getElementById('subTimeStart').focus(); return; }
+    const reqStart = parseInt(reqStartVal, 10);
+    timeInfo = { wantsTime: true, reqDate, reqStart, reqDuration, reqEnd: reqStart + reqDuration };
+  }
+
+  let list = [];
+  try {
+    const p = await dbGet('pending', true);
+    list = p ? Object.values(p) : [];
+  } catch (e) { list = []; }
+  list.push({
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    name, title, sub, suggestedDue: due, submittedAt: todayStr(),
+    assignedToUids: assignees.map(a => a.uid),
+    assignedToNames: assignees.map(a => a.name),
+    responses: {},
+    ...timeInfo
+  });
+  try { await dbSet('pending', list, true); }
+  catch (e) { console.error('submit failed', e); }
+  try { localStorage.setItem('submitterName', name); } catch (e) {}
+
+  document.getElementById('submitFormWrap').classList.add('hidden');
+  document.getElementById('submitConfirm').classList.remove('hidden');
+}
+function resetSubmitForm() {
+  document.getElementById('subTitle').value = '';
+  document.getElementById('subSub').value = '';
+  document.getElementById('subDue').value = '';
+  document.querySelectorAll('.assignee-check').forEach(cb => cb.checked = false);
+  document.getElementById('subNeedsTime').checked = false;
+  document.getElementById('subTimeWrap').style.display = 'none';
+  document.getElementById('subTimeDate').value = '';
+  document.getElementById('subTimeStart').innerHTML = '<option value="">Select at least one person and a date first</option>';
+  document.getElementById('subAccessCode').value = '';
+  document.getElementById('subCodeError').style.display = 'none';
+  document.getElementById('submitConfirm').classList.add('hidden');
+  document.getElementById('submitFormWrap').classList.remove('hidden');
+  document.getElementById('subTitle').focus();
+}
+
+function anyModalOpen() {
+  const overlayIds = ['modalOverlay', 'tbRecurringModalOverlay', 'timeblockModalOverlay', 'recurringModalOverlay', 'labelModalOverlay', 'linkModalOverlay', 'projectModalOverlay', 'nameModalOverlay', 'manageTeamModalOverlay', 'submitCodeModalOverlay', 'exportModalOverlay', 'confirmCodeModalOverlay'];
+  return overlayIds.some(id => {
+    const el = document.getElementById(id);
+    return el && !el.classList.contains('hidden');
+  });
+}
+
+document.getElementById('modalOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'modalOverlay') closeModal();
+});
+document.getElementById('labelModalOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'labelModalOverlay') closeLabelModal();
+});
+document.getElementById('linkModalOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'linkModalOverlay') closeLinkModal();
+});
+document.getElementById('recurringModalOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'recurringModalOverlay') closeRecurringModal();
+});
+document.getElementById('timeblockModalOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'timeblockModalOverlay') closeTimeBlockModal();
+});
+document.getElementById('tbRecurringModalOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'tbRecurringModalOverlay') closeTbRecurringModal();
+});
+document.getElementById('confirmCodeModalOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'confirmCodeModalOverlay') closeConfirmCodeModal();
+});
+document.getElementById('projectModalOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'projectModalOverlay') closeProjectModal();
+});
+document.getElementById('nameModalOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'nameModalOverlay') closeNameModal();
+});
+document.getElementById('manageTeamModalOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'manageTeamModalOverlay') closeManageTeamModal();
+});
+document.getElementById('submitCodeModalOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'submitCodeModalOverlay') closeSubmitCodeModal();
+});
+document.getElementById('exportModalOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'exportModalOverlay') closeExportModal();
+});
+
+function applyKioskRestrictions() {
+  if (!isKioskMode) return;
+  ['addTaskBtn', 'repeatingTasksBtn', 'tbAddBtn', 'tbRepeatingBtn', 'tbClearAllBtn', 'newProjectBtn', 'manageTeamBtn', 'submitCodeBtn', 'editNameBtn', 'exportDataBtn', 'quickLinksBox'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+}
+
+let sessionStarted = false; // guards against setting up duplicate timers if auth state fires more than once
+
+if (isSubmitMode) {
+  document.getElementById('authScreen').classList.add('hidden');
+  document.getElementById('mainView').classList.add('hidden');
+  document.getElementById('submitView').classList.remove('hidden');
+  initSubmitView();
+} else if (isViewOnlyMode) {
+  document.getElementById('authScreen').classList.add('hidden');
+  document.getElementById('mainView').classList.add('hidden');
+  document.getElementById('readOnlyView').classList.remove('hidden');
+  initReadOnlyView();
+} else {
+  fbAuth.onAuthStateChanged(async (user) => {
+    if (!user) {
+      currentUid = null;
+      document.getElementById('mainView').classList.add('hidden');
+      document.getElementById('authScreen').classList.remove('hidden');
+      return;
+    }
+    currentUid = user.uid;
+    document.getElementById('authScreen').classList.add('hidden');
+    document.getElementById('mainView').classList.remove('hidden');
+    await updateDirectoryEntry();
+    if (currentUid === OWNER_UID) {
+      const btn = document.getElementById('newProjectBtn');
+      if (btn) btn.style.display = 'inline-block';
+      const teamBtn = document.getElementById('manageTeamBtn');
+      if (teamBtn) teamBtn.style.display = 'inline-block';
+      const codeBtn = document.getElementById('submitCodeBtn');
+      if (codeBtn) codeBtn.style.display = 'inline-block';
+    }
+    await migrateLegacyDataIfNeeded();
+    applyKioskRestrictions();
+    loadState();
+    loadPending();
+    loadDailyQuote();
+    loadTeamProjects();
+
+    if (sessionStarted) return;
+    sessionStarted = true;
+    pendingPollTimer = setInterval(loadPending, 15000);
+    window.addEventListener('focus', loadPending);
+    // catches the day rolling over while the tablet stays on and open
+    setInterval(() => { checkDayRollover(); generateRecurringInstances(); generateRecurringTimeBlockInstances(); render(); }, 30 * 60 * 1000);
+    window.addEventListener('focus', () => { checkDayRollover(); generateRecurringInstances(); generateRecurringTimeBlockInstances(); render(); });
+    // keeps the time-block view honest to the current minute without a full re-render
+    setInterval(() => { checkDayRollover(); renderTimeBlocks(); }, 60 * 1000);
+    // periodic hard refresh so this tablet stays in sync with edits made elsewhere (e.g. from a PC);
+    // skipped whenever a modal is open so it never interrupts someone mid-edit
+    setInterval(() => { if (!anyModalOpen()) location.reload(); }, 15 * 60 * 1000);
+  });
+}
+</script>
+
+</body>
+</html>
