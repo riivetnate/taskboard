@@ -109,6 +109,8 @@ html, body {
 .ro-task-row.ro-pastdue span:first-child { color: var(--high); font-weight: 600; }
 .ro-task-row.ro-done { background: rgba(67, 196, 99, 0.14); border: 1px solid rgba(67, 196, 99, 0.4); }
 .ro-task-row.ro-done span:first-child { color: var(--good); text-decoration: line-through; }
+.ro-task-row.ro-completed-row { background: var(--surface-2); border: 1px solid var(--line); opacity: 0.65; }
+.ro-task-row.ro-completed-row span:first-child { color: var(--muted); text-decoration: line-through; }
 .ro-cat-block {
   display: flex;
   align-items: center;
@@ -1298,6 +1300,8 @@ html, body {
     <button id="manageTeamBtn" style="display:none;" onclick="openManageTeamModal()">👥 Manage Team</button>
     <button id="submitCodeBtn" style="display:none;" onclick="openSubmitCodeModal()">🔒 Submission Code</button>
     <button id="newProjectBtn" style="display:none;" onclick="openProjectModal()">+ New Team Project</button>
+    <button id="availSettingsBtn" onclick="openAvailabilitySettings()">⏰ Availability Settings</button>
+    <button id="availToggleBtn" onclick="toggleAvailability()">🔴 Unavailable</button>
     <button onclick="doSignOut()">Sign Out</button>
   </div>
 
@@ -1452,7 +1456,10 @@ html, body {
     <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
       <div>
         <h1 style="margin-bottom:2px;" id="roPageTitle">Workload Overview</h1>
-        <div class="sub-lbl" style="margin:0;">view only</div>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div class="sub-lbl" style="margin:0;">view only</div>
+          <span id="roAvailBadge" style="display:none; font-size:12px; font-weight:600; padding:3px 10px; border-radius:20px;"></span>
+        </div>
       </div>
       <a id="roSubmitLink" class="add-btn" href="?submit=1" style="text-decoration:none; display:inline-block; white-space:nowrap;">+ Submit Request</a>
     </div>
@@ -1474,6 +1481,9 @@ html, body {
       </div>
     </div>
     <div id="roTimeblockArea"></div>
+
+    <div class="ro-section-label">Completed (last 7 days)</div>
+    <div id="roCompleted"></div>
   </div>
 </div>
 
@@ -1504,6 +1514,10 @@ html, body {
     <div class="field">
       <label>Due Date &nbsp;<span style="color:var(--muted); font-weight:400; text-transform:none; letter-spacing:0;">(first occurrence, if repeating)</span></label>
       <input type="date" id="inpDue">
+      <div class="checkbox-field" style="margin-top:8px;">
+        <input type="checkbox" id="inpNoDue" onchange="toggleNoDueDate()">
+        <label for="inpNoDue">No due date — just keep it on my radar (sits in Upcoming)</label>
+      </div>
     </div>
     <div class="field" id="repeatFieldWrap">
       <label>Repeat</label>
@@ -1539,6 +1553,44 @@ html, body {
     <div id="tbRecurringList"></div>
     <div class="modal-actions">
       <button class="btn-cancel" style="flex:1;" onclick="closeTbRecurringModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="availSettingsModalOverlay">
+  <div class="modal">
+    <h2>Availability Settings</h2>
+    <div style="color:var(--muted); font-size:13px; margin-bottom:16px;">Each day at this time, you'll get a prompt asking if you're available. You'll stay marked "Unavailable" until you answer it — even if you were marked Available the day before.</div>
+    <div class="field">
+      <label>Prompt Time</label>
+      <input type="time" id="availPromptTime" value="07:00">
+    </div>
+    <div class="field">
+      <label>On which days?</label>
+      <div class="dow-picks">
+        <label class="dow-check"><input type="checkbox" class="avail-dow-check" value="0"> Sun</label>
+        <label class="dow-check"><input type="checkbox" class="avail-dow-check" value="1"> M</label>
+        <label class="dow-check"><input type="checkbox" class="avail-dow-check" value="2"> Tu</label>
+        <label class="dow-check"><input type="checkbox" class="avail-dow-check" value="3"> W</label>
+        <label class="dow-check"><input type="checkbox" class="avail-dow-check" value="4"> Th</label>
+        <label class="dow-check"><input type="checkbox" class="avail-dow-check" value="5"> F</label>
+        <label class="dow-check"><input type="checkbox" class="avail-dow-check" value="6"> Sat</label>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeAvailabilitySettings()">Cancel</button>
+      <button class="btn-save" onclick="saveAvailabilitySettings()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="availPromptOverlay">
+  <div class="modal">
+    <h2>Are you available?</h2>
+    <div style="color:var(--muted); font-size:13px; margin-bottom:20px;">You've been marked Unavailable until this is answered.</div>
+    <div class="modal-actions">
+      <button class="btn-cancel" style="border-color:var(--high); color:var(--high);" onclick="answerAvailabilityPrompt('unavailable')">🔴 Still Unavailable</button>
+      <button class="btn-save" style="background:var(--good); color:#0d2a10;" onclick="answerAvailabilityPrompt('available')">🟢 I'm Available</button>
     </div>
   </div>
 </div>
@@ -2000,6 +2052,10 @@ async function loadState() {
     const tbt = await dbGet('tbTemplates');
     recurringTimeBlockTemplates = tbt ? Object.values(tbt) : [];
   } catch (e) { recurringTimeBlockTemplates = []; }
+  try {
+    const av = await dbGet('availability');
+    availabilityState = av ? Object.assign({}, DEFAULT_AVAILABILITY, av) : Object.assign({}, DEFAULT_AVAILABILITY);
+  } catch (e) { availabilityState = Object.assign({}, DEFAULT_AVAILABILITY); }
 
   // roll over daily score if the date changed
   if (stats.lastScoreDate !== todayStr()) {
@@ -2012,6 +2068,8 @@ async function loadState() {
   saveStats(); // persist rollover
   syncBusyTimes();
   syncPublicTasks();
+  publishAvailability();
+  checkAvailabilityPrompt();
 }
 
 function doSignIn() {
@@ -2396,6 +2454,23 @@ async function initReadOnlyView() {
   document.getElementById('roPageTitle').textContent = `${personName}'s Board`;
   document.getElementById('roSubmitLink').href = location.pathname + '?submit=1&who=' + roTargetUid;
 
+  const availData = await publicFetch(`availability/${roTargetUid}`);
+  const badge = document.getElementById('roAvailBadge');
+  if (availData && availData.status) {
+    badge.style.display = 'inline-block';
+    if (availData.status === 'available') {
+      badge.textContent = '🟢 Available';
+      badge.style.background = 'rgba(67, 196, 99, 0.16)';
+      badge.style.color = 'var(--good)';
+      badge.style.border = '1px solid rgba(67, 196, 99, 0.4)';
+    } else {
+      badge.textContent = '🔴 Unavailable';
+      badge.style.background = 'rgba(229, 72, 77, 0.16)';
+      badge.style.color = 'var(--high)';
+      badge.style.border = '1px solid rgba(229, 72, 77, 0.4)';
+    }
+  }
+
   const tasksData = await publicFetch(`publicTasks/${roTargetUid}`);
   const roTasks = tasksData ? Object.values(tasksData) : [];
   renderReadOnlyTasks(roTasks);
@@ -2409,13 +2484,27 @@ function renderReadOnlyTasks(roTasks) {
   const today = todayStr();
   const tomorrow = tomorrowStr();
   const buckets = { today: [], tomorrow: [], upcoming: [] };
+  const completedRecent = [];
+
+  const sevenDaysAgo = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  })();
+
   roTasks.forEach(t => {
+    if (t.completed) {
+      // Only keep it around for 7 days after completion — older ones just quietly age out.
+      if (t.completedAt && t.completedAt >= sevenDaysAgo) completedRecent.push(t);
+      return;
+    }
     if (!t.due || t.due > tomorrow) buckets.upcoming.push(t);
     else if (t.due === tomorrow) buckets.tomorrow.push(t);
     else buckets.today.push(t); // covers today and overdue
   });
   buckets.today.sort((a, b) => (a.due || '').localeCompare(b.due || ''));
   buckets.upcoming.sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999'));
+  completedRecent.sort((a, b) => (b.completedAt || '').localeCompare(a.completedAt || ''));
 
   function rowsFor(list) {
     if (list.length === 0) return `<div class="ro-empty">Nothing here.</div>`;
@@ -2423,9 +2512,7 @@ function renderReadOnlyTasks(roTasks) {
     return list.map(t => {
       let cls = 'ro-normal';
       let suffix = '';
-      if (t.completed) {
-        cls = 'ro-done';
-      } else if (t.due && t.due < today) {
+      if (t.due && t.due < today) {
         cls = 'ro-pastdue';
         suffix = ' – PAST DUE';
       } else if (t.priority === 'high') {
@@ -2434,13 +2521,21 @@ function renderReadOnlyTasks(roTasks) {
       }
       return `<div class="ro-task-row ${cls}">
         <span>${escapeHtml(t.title)}${suffix}</span>
-        ${t.due ? `<span class="ro-due">${fmtDate(t.due)}</span>` : ''}
+        ${t.due ? `<span class="ro-due">${fmtDate(t.due)}</span>` : `<span class="ro-due">Someday</span>`}
       </div>`;
     }).join('');
   }
   document.getElementById('roToday').innerHTML = rowsFor(buckets.today);
   document.getElementById('roTomorrow').innerHTML = rowsFor(buckets.tomorrow);
   document.getElementById('roUpcoming').innerHTML = rowsFor(buckets.upcoming);
+
+  const compArea = document.getElementById('roCompleted');
+  compArea.innerHTML = completedRecent.length === 0
+    ? `<div class="ro-empty">Nothing completed in the last 7 days.</div>`
+    : completedRecent.map(t => `<div class="ro-task-row ro-completed-row">
+        <span>${escapeHtml(t.title)}</span>
+        <span class="ro-due">${fmtDate(t.completedAt)}</span>
+      </div>`).join('');
 }
 
 const RO_SLOT_PX = 38; // condensed width per 30-min slot — sized so the full 8am-midnight day fits without scrolling
@@ -2602,6 +2697,7 @@ async function saveTimeBlocks() {
   try { await dbSet('timeblocks', timeBlocks); }
   catch (e) { console.error('save timeblocks failed', e); }
   syncBusyTimes();
+  publishAvailability();
 }
 // Publishes this person's schedule shape for the read-only view and the availability checker.
 // IMCA/Riivet blocks include the real title (business-related, OK to surface); Personal blocks
@@ -2625,7 +2721,7 @@ async function syncBusyTimes() {
 // deliberately (unlike the operator's own board) so progress stays visible there over time.
 async function syncPublicTasks() {
   try {
-    const pub = tasks.map(t => ({ title: t.title, due: t.due || null, priority: t.priority, completed: !!t.completed }));
+    const pub = tasks.map(t => ({ title: t.title, due: t.due || null, priority: t.priority, completed: !!t.completed, completedAt: t.completedAt || null }));
     await dbSet(`publicTasks/${currentUid}`, pub, true);
   } catch (e) { console.error('sync public tasks failed', e); }
 }
@@ -2643,6 +2739,8 @@ function openModal(id) {
     document.getElementById('inpTitle').value = task.title;
     document.getElementById('inpSub').value = task.sub || '';
     document.getElementById('inpDue').value = task.due || '';
+    document.getElementById('inpNoDue').checked = !task.due;
+    document.getElementById('inpDue').disabled = !task.due;
     pickPriority(task.priority);
     document.getElementById('repeatFieldWrap').style.display = 'none';
     document.getElementById('taskSaveBtn').textContent = 'Save Changes';
@@ -2660,6 +2758,8 @@ function openModal(id) {
     document.getElementById('inpTitle').value = '';
     document.getElementById('inpSub').value = '';
     document.getElementById('inpDue').value = todayStr();
+    document.getElementById('inpNoDue').checked = false;
+    document.getElementById('inpDue').disabled = false;
     pickPriority('medium');
     pickRepeat('none');
     document.getElementById('repeatFieldWrap').style.display = 'block';
@@ -2670,6 +2770,12 @@ function openModal(id) {
   }
   document.getElementById('modalOverlay').classList.remove('hidden');
   setTimeout(() => document.getElementById('inpTitle').focus(), 50);
+}
+function toggleNoDueDate() {
+  const noDue = document.getElementById('inpNoDue').checked;
+  document.getElementById('inpDue').disabled = noDue;
+  if (noDue) document.getElementById('inpDue').value = '';
+  else if (!document.getElementById('inpDue').value) document.getElementById('inpDue').value = todayStr();
 }
 function closeModal() {
   document.getElementById('modalOverlay').classList.add('hidden');
@@ -2857,7 +2963,7 @@ function render() {
       <div class="upcoming-row-head" onclick="toggleTaskRow('${t.id}')">
         <button class="check pri-${t.priority}" onclick="event.stopPropagation(); toggleComplete('${t.id}')"></button>
         <span class="u-title">${escapeHtml(t.title)}${t.recurringId ? ' 🔁' : ''}</span>
-        <span class="u-due${isOverdue ? ' overdue-text' : ''}">${isOverdue ? 'OVERDUE' : (t.due ? fmtDate(t.due) : 'No date')}</span>
+        <span class="u-due${isOverdue ? ' overdue-text' : ''}">${isOverdue ? 'OVERDUE' : (t.due ? fmtDate(t.due) : 'Someday')}</span>
         <span class="chevron">▼</span>
       </div>
       <div class="upcoming-detail">
@@ -3421,6 +3527,103 @@ function deleteFromTbModal() {
   render();
 }
 
+/* ---------- AVAILABILITY (available/busy status shown on the view-only page) ---------- */
+const DEFAULT_AVAILABILITY = {
+  manualStatus: 'unavailable',   // 'available' | 'unavailable' — the fail-safe default is unavailable
+  lastPromptAnsweredDate: null,  // 'YYYY-MM-DD' — the day the daily prompt was last answered
+  promptTime: '07:00',
+  promptDays: [0, 1, 2, 3, 4, 5, 6] // default: every day
+};
+let availabilityState = Object.assign({}, DEFAULT_AVAILABILITY);
+
+function parseTimeToMinutes(hhmm) {
+  const [h, m] = (hhmm || '07:00').split(':').map(n => parseInt(n, 10));
+  return (h || 0) * 60 + (m || 0);
+}
+async function saveAvailabilityState() {
+  try { await dbSet('availability', availabilityState); }
+  catch (e) { console.error('save availability failed', e); }
+}
+// Currently-active time block always wins — you can't be "available" while literally in a scheduled block.
+// Otherwise, if today's prompt hasn't been answered yet, the fail-safe default is unavailable.
+function computeEffectiveAvailability() {
+  const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const today = todayStr();
+  const inBlock = timeBlocks.some(b => b.date === today && b.start <= nowMinutes && nowMinutes < b.end);
+  if (inBlock) return 'busy';
+  const dow = now.getDay();
+  const promptDue = (availabilityState.promptDays || []).includes(dow) && nowMinutes >= parseTimeToMinutes(availabilityState.promptTime);
+  const answeredToday = availabilityState.lastPromptAnsweredDate === today;
+  if (promptDue && !answeredToday) return 'unavailable';
+  return availabilityState.manualStatus === 'available' ? 'available' : 'unavailable';
+}
+async function publishAvailability() {
+  try {
+    const status = computeEffectiveAvailability();
+    await dbSet(`availability/${currentUid}`, { status }, true);
+  } catch (e) { console.error('publish availability failed', e); }
+  renderAvailabilityBadge();
+}
+function renderAvailabilityBadge() {
+  const btn = document.getElementById('availToggleBtn');
+  if (!btn) return;
+  const status = computeEffectiveAvailability();
+  if (status === 'available') {
+    btn.textContent = '🟢 Available';
+    btn.style.borderColor = 'var(--good)';
+    btn.style.color = 'var(--good)';
+  } else {
+    btn.textContent = '🔴 Unavailable';
+    btn.style.borderColor = 'var(--high)';
+    btn.style.color = 'var(--high)';
+  }
+}
+function toggleAvailability() {
+  availabilityState.manualStatus = availabilityState.manualStatus === 'available' ? 'unavailable' : 'available';
+  availabilityState.lastPromptAnsweredDate = todayStr(); // manually toggling counts as answering today's prompt too
+  saveAvailabilityState();
+  publishAvailability();
+}
+function checkAvailabilityPrompt() {
+  const overlay = document.getElementById('availPromptOverlay');
+  if (!overlay || !overlay.classList.contains('hidden')) return; // already showing, or not on a page that has it
+  const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const today = todayStr();
+  const dow = now.getDay();
+  if (!(availabilityState.promptDays || []).includes(dow)) return;
+  if (nowMinutes < parseTimeToMinutes(availabilityState.promptTime)) return;
+  if (availabilityState.lastPromptAnsweredDate === today) return;
+  overlay.classList.remove('hidden');
+}
+function answerAvailabilityPrompt(status) {
+  availabilityState.manualStatus = status;
+  availabilityState.lastPromptAnsweredDate = todayStr();
+  saveAvailabilityState();
+  publishAvailability();
+  document.getElementById('availPromptOverlay').classList.add('hidden');
+}
+function openAvailabilitySettings() {
+  document.getElementById('availPromptTime').value = availabilityState.promptTime || '07:00';
+  document.querySelectorAll('.avail-dow-check').forEach(cb => {
+    cb.checked = (availabilityState.promptDays || []).includes(parseInt(cb.value, 10));
+  });
+  document.getElementById('availSettingsModalOverlay').classList.remove('hidden');
+}
+function closeAvailabilitySettings() {
+  document.getElementById('availSettingsModalOverlay').classList.add('hidden');
+}
+function saveAvailabilitySettings() {
+  const time = document.getElementById('availPromptTime').value || '07:00';
+  const days = Array.from(document.querySelectorAll('.avail-dow-check:checked')).map(cb => parseInt(cb.value, 10));
+  availabilityState.promptTime = time;
+  availabilityState.promptDays = days;
+  saveAvailabilityState();
+  publishAvailability();
+  closeAvailabilitySettings();
+}
+
 let tbLastViewDate = null;
 let tbLastEffectiveStart = null;
 
@@ -3738,7 +3941,7 @@ function resetSubmitForm() {
 }
 
 function anyModalOpen() {
-  const overlayIds = ['modalOverlay', 'tbRecurringModalOverlay', 'timeblockModalOverlay', 'recurringModalOverlay', 'labelModalOverlay', 'linkModalOverlay', 'projectModalOverlay', 'nameModalOverlay', 'manageTeamModalOverlay', 'submitCodeModalOverlay', 'exportModalOverlay', 'confirmCodeModalOverlay'];
+  const overlayIds = ['modalOverlay', 'tbRecurringModalOverlay', 'timeblockModalOverlay', 'recurringModalOverlay', 'labelModalOverlay', 'linkModalOverlay', 'projectModalOverlay', 'nameModalOverlay', 'manageTeamModalOverlay', 'submitCodeModalOverlay', 'exportModalOverlay', 'confirmCodeModalOverlay', 'availSettingsModalOverlay', 'availPromptOverlay'];
   return overlayIds.some(id => {
     const el = document.getElementById(id);
     return el && !el.classList.contains('hidden');
@@ -3766,6 +3969,11 @@ document.getElementById('tbRecurringModalOverlay').addEventListener('click', (e)
 document.getElementById('confirmCodeModalOverlay').addEventListener('click', (e) => {
   if (e.target.id === 'confirmCodeModalOverlay') closeConfirmCodeModal();
 });
+document.getElementById('availSettingsModalOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'availSettingsModalOverlay') closeAvailabilitySettings();
+});
+// Note: availPromptOverlay intentionally has NO click-outside handler — answering it is
+// required, that's the whole point of the fail-safe-to-unavailable design.
 document.getElementById('projectModalOverlay').addEventListener('click', (e) => {
   if (e.target.id === 'projectModalOverlay') closeProjectModal();
 });
@@ -3784,7 +3992,7 @@ document.getElementById('exportModalOverlay').addEventListener('click', (e) => {
 
 function applyKioskRestrictions() {
   if (!isKioskMode) return;
-  ['addTaskBtn', 'repeatingTasksBtn', 'tbAddBtn', 'tbRepeatingBtn', 'tbClearAllBtn', 'newProjectBtn', 'manageTeamBtn', 'submitCodeBtn', 'editNameBtn', 'exportDataBtn', 'quickLinksBox'].forEach(id => {
+  ['addTaskBtn', 'repeatingTasksBtn', 'tbAddBtn', 'tbRepeatingBtn', 'tbClearAllBtn', 'newProjectBtn', 'manageTeamBtn', 'submitCodeBtn', 'editNameBtn', 'exportDataBtn', 'quickLinksBox', 'availSettingsBtn'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -3837,7 +4045,7 @@ if (isSubmitMode) {
     setInterval(() => { checkDayRollover(); generateRecurringInstances(); generateRecurringTimeBlockInstances(); render(); }, 30 * 60 * 1000);
     window.addEventListener('focus', () => { checkDayRollover(); generateRecurringInstances(); generateRecurringTimeBlockInstances(); render(); });
     // keeps the time-block view honest to the current minute without a full re-render
-    setInterval(() => { checkDayRollover(); renderTimeBlocks(); }, 60 * 1000);
+    setInterval(() => { checkDayRollover(); renderTimeBlocks(); publishAvailability(); checkAvailabilityPrompt(); }, 60 * 1000);
     // periodic hard refresh so this tablet stays in sync with edits made elsewhere (e.g. from a PC);
     // skipped whenever a modal is open so it never interrupts someone mid-edit
     setInterval(() => { if (!anyModalOpen()) location.reload(); }, 15 * 60 * 1000);
