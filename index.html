@@ -1592,6 +1592,37 @@ html, body {
         <label for="inpNoDue">No due date — just keep it on my radar (sits in Upcoming)</label>
       </div>
     </div>
+    <div class="field" id="taskTbCheckWrap">
+      <div class="checkbox-field">
+        <input type="checkbox" id="inpAddTimeBlock" onchange="toggleInlineTimeBlock()">
+        <label for="inpAddTimeBlock">Also schedule a time block for this</label>
+      </div>
+    </div>
+    <div id="inlineTbWrap" style="display:none;">
+      <div class="field">
+        <label>Time Block Date</label>
+        <input type="date" id="inlineTbDate">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Start Time</label>
+          <select id="inlineTbStart"></select>
+        </div>
+        <div class="field">
+          <label>End Time</label>
+          <select id="inlineTbEnd"></select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Category</label>
+        <div class="category-picks">
+          <button class="cat-btn" id="inlineTbCatPersonal" onclick="pickInlineTbCategory('personal')">Personal</button>
+          <button class="cat-btn" id="inlineTbCatImca" onclick="pickInlineTbCategory('imca')">IMCA</button>
+          <button class="cat-btn" id="inlineTbCatRiivet" onclick="pickInlineTbCategory('riivet')">Riivet</button>
+          <button class="cat-btn" id="inlineTbCatFamily" onclick="pickInlineTbCategory('family')">Family</button>
+        </div>
+      </div>
+    </div>
     <div class="field" id="repeatFieldWrap">
       <label>Repeat</label>
       <div class="repeat-picks">
@@ -2938,6 +2969,10 @@ function openModal(id) {
     } else {
       document.getElementById('reactivateWrap').style.display = 'none';
     }
+    // Editing an existing task already has its own "Schedule Time Block" button/flow —
+    // this inline checkbox is only for the moment of creating a brand new task.
+    document.getElementById('taskTbCheckWrap').style.display = 'none';
+    document.getElementById('inlineTbWrap').style.display = 'none';
   } else {
     editingTaskId = null;
     document.getElementById('taskModalTitle').textContent = 'New Task';
@@ -2954,6 +2989,12 @@ function openModal(id) {
     document.getElementById('modalDeleteWrap').style.display = 'none';
     document.getElementById('scheduleBtnWrap').style.display = 'none';
     document.getElementById('reactivateWrap').style.display = 'none';
+    document.getElementById('taskTbCheckWrap').style.display = 'block';
+    document.getElementById('inpAddTimeBlock').checked = false;
+    document.getElementById('inlineTbWrap').style.display = 'none';
+    document.getElementById('inlineTbDate').value = '';
+    document.getElementById('inlineTbStart').value = '';
+    document.getElementById('inlineTbEnd').value = '';
   }
   document.getElementById('modalOverlay').classList.remove('hidden');
   setTimeout(() => document.getElementById('inpTitle').focus(), 50);
@@ -2981,6 +3022,40 @@ function pickTaskCategory(c) {
     const el = document.getElementById('taskCat' + x[0].toUpperCase() + x.slice(1));
     el.className = 'cat-btn' + (x === c ? ' active-' + c : '');
   });
+}
+let selectedInlineTbCategory = 'personal';
+function pickInlineTbCategory(c) {
+  selectedInlineTbCategory = c;
+  ['personal', 'imca', 'riivet', 'family'].forEach(x => {
+    const el = document.getElementById('inlineTbCat' + x[0].toUpperCase() + x.slice(1));
+    el.className = 'cat-btn' + (x === c ? ' active-' + c : '');
+  });
+}
+function populateInlineTbTimeSelects() {
+  const s = document.getElementById('inlineTbStart');
+  const e = document.getElementById('inlineTbEnd');
+  if (s.options.length) return; // already populated on a prior open
+  for (let m = TB_START_MIN; m < TB_END_MIN; m += TB_SLOT_MIN) {
+    s.innerHTML += `<option value="${m}">${fmtMinutes(m)}</option>`;
+  }
+  for (let m = TB_START_MIN + TB_SLOT_MIN; m <= TB_END_MIN; m += TB_SLOT_MIN) {
+    e.innerHTML += `<option value="${m}">${fmtMinutes(m)}</option>`;
+  }
+}
+function toggleInlineTimeBlock() {
+  const checked = document.getElementById('inpAddTimeBlock').checked;
+  document.getElementById('inlineTbWrap').style.display = checked ? 'block' : 'none';
+  if (checked) {
+    populateInlineTbTimeSelects();
+    if (!document.getElementById('inlineTbDate').value) {
+      document.getElementById('inlineTbDate').value = document.getElementById('inpDue').value || todayStr();
+    }
+    if (!document.getElementById('inlineTbStart').value) {
+      document.getElementById('inlineTbStart').value = TB_START_MIN;
+      document.getElementById('inlineTbEnd').value = TB_START_MIN + TB_SLOT_MIN;
+    }
+    pickInlineTbCategory(selectedInlineTbCategory);
+  }
 }
 function pickRepeat(r) {
   selectedRepeat = r;
@@ -3025,13 +3100,31 @@ function saveTask() {
     saveTemplates();
   }
 
+  const newTaskId = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
   tasks.push({
-    id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+    id: newTaskId,
     title, sub, priority: selectedPriority, category: selectedTaskCategory, due,
     completed: false, completedAt: null,
     ...(recurringId ? { recurringId } : {})
   });
   saveTasks();
+
+  if (document.getElementById('inpAddTimeBlock').checked) {
+    const tbStartVal = document.getElementById('inlineTbStart').value;
+    const tbEndVal = document.getElementById('inlineTbEnd').value;
+    const tbStart = parseInt(tbStartVal, 10);
+    const tbEnd = parseInt(tbEndVal, 10);
+    const tbDate = document.getElementById('inlineTbDate').value || due || todayStr();
+    if (tbStartVal !== '' && tbEndVal !== '' && tbEnd > tbStart) {
+      timeBlocks.push({
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        title, note: sub, category: selectedInlineTbCategory,
+        date: tbDate, start: tbStart, end: tbEnd, taskId: newTaskId
+      });
+      saveTimeBlocks();
+    }
+  }
+
   closeModal();
   render();
 }
