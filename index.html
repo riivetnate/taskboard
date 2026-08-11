@@ -4055,6 +4055,12 @@ function setAvailabilityStatus(status) {
 function checkAvailabilityPrompt() {
   const overlay = document.getElementById('availPromptOverlay');
   if (!overlay || !overlay.classList.contains('hidden')) return; // already showing, or not on a page that has it
+
+  // If either override is currently in effect, the badge already shows it — this function must
+  // never be able to contradict that, so it defers to the exact same computation, once, up front.
+  const effective = computeEffectiveAvailability();
+  if (effective === 'available' || effective === 'working') return;
+
   const now = new Date();
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
   const today = todayStr();
