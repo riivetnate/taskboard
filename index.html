@@ -2258,10 +2258,9 @@ async function loadState() {
     const tbt = await dbGet('tbTemplates');
     recurringTimeBlockTemplates = tbt ? Object.values(tbt) : [];
   } catch (e) { recurringTimeBlockTemplates = []; }
-  try {
-    const av = await dbGet('availability');
-    availabilityState = av ? Object.assign({}, DEFAULT_AVAILABILITY, av) : Object.assign({}, DEFAULT_AVAILABILITY);
-  } catch (e) { availabilityState = Object.assign({}, DEFAULT_AVAILABILITY); }
+  // availabilityState itself is kept in sync via a live listener (see attachAvailabilityListener),
+  // not a one-time fetch here — that's what previously let a stale tab/tablet silently overwrite
+  // a status change made somewhere else.
 
   // roll over daily score if the date changed
   if (stats.lastScoreDate !== todayStr()) {
@@ -3969,6 +3968,15 @@ async function saveAvailabilityState() {
   try { await dbSet('availability', availabilityState); }
   catch (e) { console.error('save availability failed', e); }
 }
+// Kept as a live listener rather than a one-time fetch — if it were one-time, a second open
+// session (the kiosk tablet, another tab) would keep republishing its own stale copy of your
+// status every minute and silently overwrite a change made somewhere else a short time later.
+function attachAvailabilityListener() {
+  firebase.database().ref(`users/${currentUid}/availability`).on('value', snap => {
+    availabilityState = Object.assign({}, DEFAULT_AVAILABILITY, snap.val() || {});
+    renderAvailabilityBadge();
+  });
+}
 // The daily fail-safe still applies first each day — a trigger you haven't confirmed yet
 // always wins, so an old override can't silently coast forever without ever being reconfirmed.
 // Once today is confirmed (by any answer), "Available" and "Available – Working" both
@@ -4518,6 +4526,7 @@ if (isSubmitMode) {
     }
     await migrateLegacyDataIfNeeded();
     applyKioskRestrictions();
+    attachAvailabilityListener();
     loadState();
     loadPending();
     loadDailyQuote();
