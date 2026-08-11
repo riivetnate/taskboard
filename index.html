@@ -4,6 +4,34 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>The Board</title>
+<link rel="manifest" id="pwaManifestLink" href="manifest.json">
+<meta name="theme-color" content="#0d0d0d">
+<link rel="icon" id="pwaIconLink" href="icons/icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" id="pwaAppleIconLink" href="icons/icon-192.png">
+<script>
+// One index.html serves the operating page, kiosk view, and read-only view depending on the
+// URL — so before anything else loads, point "Install app" at whichever one was actually opened.
+(function () {
+  var params = new URLSearchParams(location.search);
+  var manifestLink = document.getElementById('pwaManifestLink');
+  var iconLink = document.getElementById('pwaIconLink');
+  var appleIconLink = document.getElementById('pwaAppleIconLink');
+  if (params.get('kiosk') === '1') {
+    manifestLink.href = 'manifest-kiosk.json';
+    iconLink.href = 'icons/icon-kiosk-192.png';
+    appleIconLink.href = 'icons/icon-kiosk-192.png';
+    document.title = 'The Board – Kiosk';
+  } else if (params.get('view') === '1') {
+    manifestLink.href = 'manifest-view.json';
+    iconLink.href = 'icons/icon-view-192.png';
+    appleIconLink.href = 'icons/icon-view-192.png';
+    document.title = 'The Board – Workload View';
+  }
+})();
+</script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
 
