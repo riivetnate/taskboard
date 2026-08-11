@@ -51,6 +51,7 @@
   --score: #bf5700;
   --good: #7ed957;
   --family: #a06fe0;
+  --working: #e0b400;
   --family-dim: #2e2140;
   --col-today: #e5484d;
   --col-tomorrow: #43c463;
@@ -1369,6 +1370,7 @@ html, body {
     <button id="newProjectBtn" style="display:none;" onclick="openProjectModal()">+ New Team Project</button>
     <button id="availSettingsBtn" onclick="openAvailabilitySettings()">⏰ Availability Settings</button>
     <button id="availToggleBtn" onclick="toggleAvailability()">🔴 Unavailable</button>
+    <button id="availWorkingBtn" onclick="setWorkingStatus()" title="Override — stay marked available even during a time block, for anything that isn't a hard commitment">🟡 Working</button>
     <button onclick="doSignOut()">Sign Out</button>
   </div>
 
@@ -1730,9 +1732,10 @@ html, body {
   <div class="modal">
     <h2>Are you available?</h2>
     <div style="color:var(--muted); font-size:13px; margin-bottom:20px;">You've been marked Unavailable until this is answered.</div>
-    <div class="modal-actions">
-      <button class="btn-cancel" style="border-color:var(--high); color:var(--high);" onclick="answerAvailabilityPrompt('unavailable')">🔴 Still Unavailable</button>
-      <button class="btn-save" style="background:var(--good); color:#0d2a10;" onclick="answerAvailabilityPrompt('available')">🟢 I'm Available</button>
+    <div class="modal-actions" style="flex-direction:column;">
+      <button class="btn-save" style="background:var(--good); color:#0d2a10; width:100%;" onclick="answerAvailabilityPrompt('available')">🟢 I'm Available</button>
+      <button class="btn-save" style="background:var(--working); color:#2b2200; width:100%;" onclick="answerAvailabilityPrompt('working')">🟡 Available — Working</button>
+      <button class="btn-cancel" style="border-color:var(--high); color:var(--high); width:100%;" onclick="answerAvailabilityPrompt('unavailable')">🔴 Still Unavailable</button>
     </div>
   </div>
 </div>
@@ -2625,6 +2628,11 @@ function renderAvailBadge(availData) {
       badge.style.background = 'rgba(67, 196, 99, 0.16)';
       badge.style.color = 'var(--good)';
       badge.style.border = '1px solid rgba(67, 196, 99, 0.4)';
+    } else if (availData.status === 'working') {
+      badge.textContent = '🟡 Working';
+      badge.style.background = 'rgba(224, 180, 0, 0.16)';
+      badge.style.color = 'var(--working)';
+      badge.style.border = '1px solid rgba(224, 180, 0, 0.4)';
     } else {
       badge.textContent = '🔴 Unavailable';
       badge.style.background = 'rgba(229, 72, 77, 0.16)';
@@ -3935,8 +3943,11 @@ async function saveAvailabilityState() {
   catch (e) { console.error('save availability failed', e); }
 }
 // Currently-active time block always wins — you can't be "available" while literally in a scheduled block.
-// Otherwise, if today's auto-unavailable trigger has fired and hasn't been answered yet, that's the fail-safe.
 function computeEffectiveAvailability() {
+  // An explicit "Working" override always wins — even over a time block that's currently
+  // active. This is the deliberate escape hatch for blocks that aren't hard commitments.
+  if (availabilityState.manualStatus === 'working') return 'working';
+
   const now = new Date();
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
   const today = todayStr();
@@ -3963,6 +3974,10 @@ function renderAvailabilityBadge() {
     btn.textContent = '🟢 Available';
     btn.style.borderColor = 'var(--good)';
     btn.style.color = 'var(--good)';
+  } else if (status === 'working') {
+    btn.textContent = '🟡 Working';
+    btn.style.borderColor = 'var(--working)';
+    btn.style.color = 'var(--working)';
   } else {
     btn.textContent = '🔴 Unavailable';
     btn.style.borderColor = 'var(--high)';
@@ -3970,7 +3985,14 @@ function renderAvailabilityBadge() {
   }
 }
 function toggleAvailability() {
-  const newStatus = availabilityState.manualStatus === 'available' ? 'unavailable' : 'available';
+  // If the Working override is on, this button's job is just to clear it back to Available —
+  // setting Working itself happens through its own dedicated button, not this cycle.
+  let newStatus;
+  if (availabilityState.manualStatus === 'working') {
+    newStatus = 'available';
+  } else {
+    newStatus = availabilityState.manualStatus === 'available' ? 'unavailable' : 'available';
+  }
   availabilityState.manualStatus = newStatus;
   availabilityState.lastPromptAnsweredDate = todayStr();
   // starts (or clears) the 1-hour follow-up countdown, same as answering the prompt does
@@ -3978,12 +4000,24 @@ function toggleAvailability() {
   saveAvailabilityState();
   publishAvailability();
 }
+// A deliberate, explicit override — not part of the Available/Unavailable cycle, since it's
+// meant to be something you turn on on purpose for a loose/flexible block, not stumble into.
+function setWorkingStatus() {
+  availabilityState.manualStatus = 'working';
+  availabilityState.lastPromptAnsweredDate = todayStr();
+  availabilityState.unavailableSince = null; // Working is never subject to the 1-hour lunch-break nudge
+  saveAvailabilityState();
+  publishAvailability();
+}
 // Two independent triggers for the same prompt: the per-day scheduled time (fail-safe until
 // answered), and a one-hour-later nudge any time you're marked unavailable — covers lunch
 // breaks and similar: step away, and an hour later it reminds you to flip back if you're back.
+// Working is deliberately excluded from both — it's an explicit choice, not something that
+// should be second-guessed by the automatic system.
 function checkAvailabilityPrompt() {
   const overlay = document.getElementById('availPromptOverlay');
   if (!overlay || !overlay.classList.contains('hidden')) return; // already showing, or not on a page that has it
+  if (availabilityState.manualStatus === 'working') return;
   const now = new Date();
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
   const today = todayStr();
@@ -3994,7 +4028,7 @@ function checkAvailabilityPrompt() {
     overlay.classList.remove('hidden');
     return;
   }
-  if (availabilityState.manualStatus !== 'available' && availabilityState.unavailableSince &&
+  if (availabilityState.manualStatus === 'unavailable' && availabilityState.unavailableSince &&
       (Date.now() - availabilityState.unavailableSince) >= 60 * 60 * 1000) {
     overlay.classList.remove('hidden');
   }
@@ -4003,7 +4037,7 @@ function answerAvailabilityPrompt(status) {
   availabilityState.manualStatus = status;
   availabilityState.lastPromptAnsweredDate = todayStr();
   // Answering "still unavailable" restarts the 1-hour clock for the next nudge; answering
-  // "available" clears it entirely.
+  // "available" or "working" clears it entirely.
   availabilityState.unavailableSince = status === 'unavailable' ? Date.now() : null;
   saveAvailabilityState();
   publishAvailability();
