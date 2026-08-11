@@ -4032,9 +4032,14 @@ document.addEventListener('click', (e) => {
     menu.classList.add('hidden');
   }
 });
+// Purely local — never touches Firebase — so a delayed echo from the live listener can never
+// un-set it and cause the daily prompt to re-fire again a few minutes after being answered.
+let dailyPromptAnsweredThisPageLoad = false;
+
 function setAvailabilityStatus(status) {
   availabilityState.manualStatus = status;
   availabilityState.lastPromptAnsweredDate = todayStr();
+  dailyPromptAnsweredThisPageLoad = true;
   // starts (or clears) the 1-hour follow-up countdown — only relevant for genuine Unavailable
   availabilityState.unavailableSince = status === 'unavailable' ? Date.now() : null;
   saveAvailabilityState();
@@ -4055,7 +4060,8 @@ function checkAvailabilityPrompt() {
   const today = todayStr();
   const sched = getTodaySchedule();
 
-  if (sched.enabled && nowMinutes >= parseTimeToMinutes(sched.time) && availabilityState.lastPromptAnsweredDate !== today) {
+  const dailyAnswered = dailyPromptAnsweredThisPageLoad || availabilityState.lastPromptAnsweredDate === today;
+  if (sched.enabled && nowMinutes >= parseTimeToMinutes(sched.time) && !dailyAnswered) {
     if (!availabilityState.unavailableSince) availabilityState.unavailableSince = Date.now();
     overlay.classList.remove('hidden');
     return;
@@ -4068,6 +4074,7 @@ function checkAvailabilityPrompt() {
 function answerAvailabilityPrompt(status) {
   availabilityState.manualStatus = status;
   availabilityState.lastPromptAnsweredDate = todayStr();
+  dailyPromptAnsweredThisPageLoad = true;
   // Answering "still unavailable" restarts the 1-hour clock for the next nudge; answering
   // "available" or "working" clears it entirely.
   availabilityState.unavailableSince = status === 'unavailable' ? Date.now() : null;
