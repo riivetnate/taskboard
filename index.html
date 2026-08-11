@@ -129,8 +129,6 @@ html, body {
 .ro-hgrid .ro-vline { grid-row: 1; border-left: 1px solid var(--line); }
 .ro-hgrid .ro-vline.half { border-left: 1px dashed rgba(255,255,255,0.06); }
 .ro-hblock {
-  grid-row: 1;
-  margin: 3px 1px;
   border-radius: 5px;
   overflow: hidden;
   display: -webkit-box;
@@ -146,6 +144,7 @@ html, body {
   word-break: break-word;
   padding: 2px 3px;
   cursor: default;
+  box-sizing: border-box;
 }
 
 /* ---------- AUTH / LOGIN SCREEN ---------- */
@@ -1080,10 +1079,8 @@ html, body {
 .tb-vline { grid-row: 1; border-left: 1px solid var(--line); }
 .tb-vline.half { border-left: 1px dashed rgba(255,255,255,0.06); }
 .tb-hblock {
-  grid-row: 1;
-  margin: 6px 3px;
   border-radius: 7px;
-  padding: 8px 10px;
+  padding: 6px 10px;
   overflow: hidden;
   cursor: pointer;
   border: 1px solid transparent;
@@ -1091,6 +1088,7 @@ html, body {
   flex-direction: column;
   justify-content: center;
   gap: 2px;
+  box-sizing: border-box;
 }
 .tb-hblock .tb-htitle {
   font-weight: 600;
@@ -2004,6 +2002,39 @@ const TB_END_MIN = 1440;   // 12:00 AM (midnight)
 const TB_SLOT_MIN = 30;
 const TB_RECUR_HORIZON_DAYS = 14; // rolling 2-week window — recalculated fresh every refresh, so it always covers "today + 2 weeks," never more
 const TB_SLOT_PX = 120; // pixel width per 30-min slot on the horizontal timeline — 8 slots = a 4-hour window on screen
+
+// Video-editor-timeline-style overlap layout: blocks that don't overlap anything stay full
+// height; blocks that DO overlap in time get split into equal-width lanes among just the
+// blocks in that cluster (not the whole day) — mutates each block with __lane/__laneCount.
+function computeBlockLayout(blocksIn) {
+  const blocks = blocksIn.slice().sort((a, b) => a.start - b.start || a.end - b.end);
+  const clusters = [];
+  let current = [];
+  let activeEnd = -Infinity;
+  blocks.forEach(b => {
+    if (current.length && b.start >= activeEnd) {
+      clusters.push(current);
+      current = [];
+      activeEnd = -Infinity;
+    }
+    current.push(b);
+    activeEnd = Math.max(activeEnd, b.end);
+  });
+  if (current.length) clusters.push(current);
+
+  clusters.forEach(group => {
+    const laneEndTimes = [];
+    group.forEach(b => {
+      let lane = laneEndTimes.findIndex(end => end <= b.start);
+      if (lane === -1) lane = laneEndTimes.length;
+      laneEndTimes[lane] = b.end;
+      b.__lane = lane;
+    });
+    const laneCount = laneEndTimes.length;
+    group.forEach(b => { b.__laneCount = laneCount; });
+  });
+  return blocks;
+}
 const TB_CATEGORY_LABELS = { personal: 'Personal', imca: 'IMCA', riivet: 'Riivet' };
 let tbViewDate = todayStr();
 let lastKnownToday = todayStr();
@@ -2685,9 +2716,15 @@ function renderReadOnlyTimeblocks() {
   }
 
   let blocksHtml = '';
-  busy.forEach(b => {
+  const roTrackHeight = 60; // matches .ro-hgrid CSS height
+  computeBlockLayout(busy).forEach(b => {
     const startSlot = Math.max(0, (b.start - TB_START_MIN) / TB_SLOT_MIN);
     const endSlot = Math.min(totalSlots, (b.end - TB_START_MIN) / TB_SLOT_MIN);
+    const leftPx = startSlot * RO_SLOT_PX;
+    const widthPx = (endSlot - startSlot) * RO_SLOT_PX;
+    const laneCount = b.__laneCount || 1;
+    const laneHeight = roTrackHeight / laneCount;
+    const topPx = (b.__lane || 0) * laneHeight;
     // Personal blocks only ever show the generic category label — the real title/note never
     // even reaches this public mirror. IMCA/Riivet blocks show the real title when there's one.
     const label = (b.category !== 'personal' && b.title) ? b.title : (RO_CATEGORY_LABELS[b.category] || 'Blocked');
@@ -2695,7 +2732,8 @@ function renderReadOnlyTimeblocks() {
     const tooltip = (b.category !== 'personal' && b.title)
       ? `${catName} — ${label} (${timeRangeLabel(b.start, b.end)})`
       : `${label} (${timeRangeLabel(b.start, b.end)})`;
-    blocksHtml += `<div class="ro-hblock ro-cat-block tb-${b.category || 'personal'}" style="grid-column: ${startSlot + 1} / ${endSlot + 1};" title="${escapeHtml(tooltip)}">${escapeHtml(label)}</div>`;
+    const posStyle = `position:absolute; left:${leftPx}px; width:${widthPx}px; top:${topPx + 1}px; height:${laneHeight - 2}px;`;
+    blocksHtml += `<div class="ro-hblock ro-cat-block tb-${b.category || 'personal'}" style="${posStyle}" title="${escapeHtml(tooltip)}">${escapeHtml(label)}</div>`;
   });
 
   area.innerHTML = `<div style="overflow-x:auto; -webkit-overflow-scrolling:touch;">
@@ -3941,25 +3979,33 @@ function renderTimeBlocks() {
   }
 
   let blocksHtml = '';
-  blocks.forEach(b => {
+  const trackHeight = 130; // matches .tb-hgrid CSS height
+  computeBlockLayout(blocks).forEach(b => {
     const visibleStart = Math.max(b.start, effectiveStart);
     const startSlot = Math.max(0, (visibleStart - effectiveStart) / TB_SLOT_MIN);
     const endSlot = Math.min(totalSlots, (b.end - effectiveStart) / TB_SLOT_MIN);
+    const leftPx = startSlot * TB_SLOT_PX;
+    const widthPx = (endSlot - startSlot) * TB_SLOT_PX;
+    const laneCount = b.__laneCount || 1;
+    const laneHeight = trackHeight / laneCount;
+    const topPx = (b.__lane || 0) * laneHeight;
+    const posStyle = `position:absolute; left:${leftPx}px; width:${widthPx}px; top:${topPx + 2}px; height:${laneHeight - 4}px;`;
     const linkedTask = b.taskId ? tasks.find(t => t.id === b.taskId) : null;
     const clickAttr = isKioskMode ? '' : ` onclick="openTimeBlockModal('${b.id}')"`;
     const cursorStyle = isKioskMode ? 'cursor:default;' : '';
-    const gridStyle = `grid-column: ${startSlot + 1} / ${endSlot + 1}; ${cursorStyle}`;
 
     if (linkedTask && linkedTask.completed) {
-      blocksHtml += `<div class="tb-hblock tb-done" style="${gridStyle}"${clickAttr}>
+      blocksHtml += `<div class="tb-hblock tb-done" style="${posStyle} ${cursorStyle}"${clickAttr}>
         <div class="tb-htitle">${escapeHtml(b.title)} – COMPLETED</div>
       </div>`;
       return;
     }
 
     const inProgress = viewIsToday && b.start <= nowMinutes;
-    const isCompact = (b.end - b.start) <= TB_SLOT_MIN;
-    blocksHtml += `<div class="tb-hblock tb-${b.category}${inProgress ? ' tb-inprogress' : ''}" style="${gridStyle}"${clickAttr}>
+    // Once a block is sharing a lane with another, always use the single-line compact format —
+    // there's rarely vertical room for a second line once a lane's height has been split.
+    const isCompact = (b.end - b.start) <= TB_SLOT_MIN || laneCount > 1;
+    blocksHtml += `<div class="tb-hblock tb-${b.category}${inProgress ? ' tb-inprogress' : ''}" style="${posStyle} ${cursorStyle}"${clickAttr}>
       <div class="tb-htitle">${escapeHtml(b.title)}${b.recurringId ? ' 🔁' : ''}${inProgress ? ' <span class="tb-now-tag">NOW</span>' : ''}</div>
       ${(!isCompact && b.note) ? `<div class="tb-hnote">${escapeHtml(b.note)}</div>` : ''}
     </div>`;
