@@ -218,12 +218,19 @@ html, body {
 .user-bar {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 12px;
   margin-bottom: 6px;
   font-size: 12.5px;
   color: var(--muted);
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
 }
+.user-bar::-webkit-scrollbar { height: 6px; }
+.user-bar::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+.user-bar > * { flex-shrink: 0; }
 .user-bar button {
   background: none;
   border: 1px solid var(--line);
@@ -258,25 +265,10 @@ html, body {
 /* ---------- TEAM PROJECTS ---------- */
 .team-section { margin-bottom: 16px; }
 .quick-links-box {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 12px 16px;
-  margin-bottom: 14px;
-}
-.quick-links-label {
-  font-family: 'Oswald', sans-serif;
-  font-weight: 600;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  font-size: 11px;
-  color: var(--muted);
-  margin-bottom: 8px;
-}
-.quick-links-row {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
+  margin-bottom: 12px;
 }
 .team-head {
   display: flex;
@@ -864,7 +856,7 @@ html, body {
   border: 1px solid var(--line);
   color: var(--muted);
   font-size: 12.5px;
-  padding: 12px 18px;
+  padding: 9px 14px;
   border-radius: 8px;
   cursor: pointer;
 }
@@ -1382,51 +1374,6 @@ html, body {
 </div>
 
 <div class="wrap hidden" id="mainView">
-  <div class="user-bar">
-    <span id="userBarLabel"></span>
-    <button id="editNameBtn" onclick="openNameModal()">Edit Name</button>
-    <button id="exportDataBtn" onclick="openExportModal()">Export Data</button>
-    <button id="manageTeamBtn" style="display:none;" onclick="openManageTeamModal()">👥 Manage Team</button>
-    <button id="submitCodeBtn" style="display:none;" onclick="openSubmitCodeModal()">🔒 Submission Code</button>
-    <button id="newProjectBtn" style="display:none;" onclick="openProjectModal()">+ New Team Project</button>
-    <button id="availSettingsBtn" onclick="openAvailabilitySettings()">⏰ Availability Settings</button>
-    <div style="position:relative; display:inline-block;">
-      <button id="availStatusBtn" onclick="toggleAvailDropdown(event)">🔴 Unavailable ▾</button>
-      <div class="avail-dropdown-menu hidden" id="availDropdownMenu">
-        <div class="avail-dropdown-item" onclick="setAvailabilityStatus('available')">🟢 Available</div>
-        <div class="avail-dropdown-item" onclick="setAvailabilityStatus('working')">🟡 Available – Working</div>
-        <div class="avail-dropdown-item" onclick="setAvailabilityStatus('unavailable')">🔴 Unavailable</div>
-      </div>
-    </div>
-    <button onclick="doSignOut()">Sign Out</button>
-  </div>
-
-  <div class="quick-links-box" id="quickLinksBox">
-    <div class="quick-links-label">Quick Links</div>
-    <div class="quick-links-row">
-      <button class="copy-link-btn" onclick="copyKioskLink()">📋 Kiosk Link</button>
-      <button class="copy-link-btn" onclick="copyTeamLink()">📝 Submission Form Link</button>
-      <button class="copy-link-btn" onclick="copyMyViewLink()">👁 My View-Only Link</button>
-    </div>
-  </div>
-
-  <div class="pending-section" id="pendingSection" style="display:none;">
-    <div class="pending-head">🔔 Pending Review (<span id="pendingCount">0</span>)</div>
-    <div class="pending-list" id="pendingList"></div>
-  </div>
-
-  <div class="team-section hidden" id="teamSection">
-    <div class="team-head">
-      <span class="name">Team Projects</span>
-    </div>
-    <div id="teamProjectsArea"></div>
-  </div>
-
-  <div class="quote-banner" id="quoteBanner">
-    <div class="quote-text" id="quoteText">Loading today's quote…</div>
-    <div class="quote-author" id="quoteAuthor"></div>
-    <div class="quote-attribution" id="quoteAttribution" style="display:none;">Quotes via <a href="https://zenquotes.io" target="_blank" rel="noopener">ZenQuotes.io</a></div>
-  </div>
   <div class="scoreboard">
     <div class="brand">
       <div class="title">The Board</div>
@@ -1450,6 +1397,49 @@ html, body {
         <div class="level-bar-track"><div class="level-bar-fill" id="levelBarFill" style="width:0%"></div></div>
       </div>
     </div>
+  </div>
+
+  <div class="user-bar">
+    <span id="userBarLabel"></span>
+    <button id="editNameBtn" onclick="openNameModal()">Edit Name</button>
+    <button id="exportDataBtn" onclick="openExportModal()">Export Data</button>
+    <button id="manageTeamBtn" style="display:none;" onclick="openManageTeamModal()">👥 Manage Team</button>
+    <button id="submitCodeBtn" style="display:none;" onclick="openSubmitCodeModal()">🔒 Submission Code</button>
+    <button id="newProjectBtn" style="display:none;" onclick="openProjectModal()">+ New Team Project</button>
+    <button id="availSettingsBtn" onclick="openAvailabilitySettings()">⏰ Availability Settings</button>
+    <div style="position:relative; display:inline-block;">
+      <button id="availStatusBtn" onclick="toggleAvailDropdown(event)">🔴 Unavailable ▾</button>
+      <div class="avail-dropdown-menu hidden" id="availDropdownMenu">
+        <div class="avail-dropdown-item" onclick="setAvailabilityStatus('available')">🟢 Available</div>
+        <div class="avail-dropdown-item" onclick="setAvailabilityStatus('working')">🟡 Available – Working</div>
+        <div class="avail-dropdown-item" onclick="setAvailabilityStatus('unavailable')">🔴 Unavailable</div>
+      </div>
+    </div>
+    <button onclick="doSignOut()">Sign Out</button>
+  </div>
+
+  <div class="quick-links-box" id="quickLinksBox">
+    <button class="copy-link-btn" onclick="copyKioskLink()">📋 Kiosk</button>
+    <button class="copy-link-btn" onclick="copyTeamLink()">📝 Submission Form</button>
+    <button class="copy-link-btn" onclick="copyMyViewLink()">👁 My View-Only</button>
+  </div>
+
+  <div class="pending-section" id="pendingSection" style="display:none;">
+    <div class="pending-head">🔔 Pending Review (<span id="pendingCount">0</span>)</div>
+    <div class="pending-list" id="pendingList"></div>
+  </div>
+
+  <div class="team-section hidden" id="teamSection">
+    <div class="team-head">
+      <span class="name">Team Projects</span>
+    </div>
+    <div id="teamProjectsArea"></div>
+  </div>
+
+  <div class="quote-banner" id="quoteBanner">
+    <div class="quote-text" id="quoteText">Loading today's quote…</div>
+    <div class="quote-author" id="quoteAuthor"></div>
+    <div class="quote-attribution" id="quoteAttribution" style="display:none;">Quotes via <a href="https://zenquotes.io" target="_blank" rel="noopener">ZenQuotes.io</a></div>
   </div>
 
   <div class="add-bar" style="flex-wrap:wrap; gap:10px;">
