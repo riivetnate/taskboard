@@ -267,8 +267,13 @@ html, body {
 .quick-links-box {
   display: flex;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   margin-bottom: 12px;
+}
+.quick-links-box .copy-link-btn {
+  flex: 1;
+  text-align: center;
+  white-space: nowrap;
 }
 .team-head {
   display: flex;
@@ -1419,9 +1424,9 @@ html, body {
   </div>
 
   <div class="quick-links-box" id="quickLinksBox">
-    <button class="copy-link-btn" onclick="copyKioskLink()">📋 Kiosk</button>
-    <button class="copy-link-btn" onclick="copyTeamLink()">📝 Submission Form</button>
-    <button class="copy-link-btn" onclick="copyMyViewLink()">👁 My View-Only</button>
+    <button class="copy-link-btn" onclick="copyKioskLink()">App</button>
+    <button class="copy-link-btn" onclick="copyTeamLink()">Request</button>
+    <button class="copy-link-btn" onclick="copyMyViewLink()">View</button>
   </div>
 
   <div class="pending-section" id="pendingSection" style="display:none;">
