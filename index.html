@@ -235,6 +235,55 @@ html, body {
 
 /* ---------- TEAM PROJECTS ---------- */
 .team-section { margin-bottom: 16px; }
+.team-status-box {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  margin-bottom: 12px;
+}
+.team-status-label {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.team-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 0;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--chalk);
+}
+.team-status-row:first-child { border-top: none; }
+.team-status-row .tsr-status { font-size: 12.5px; font-weight: 600; }
+.ro-tab-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.ro-tab {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  padding: 7px 14px;
+  border-radius: 20px;
+  font-size: 12.5px;
+  cursor: pointer;
+  text-decoration: none;
+}
+.ro-tab.active {
+  background: var(--med-dim);
+  border-color: var(--score);
+  color: var(--score);
+  font-weight: 600;
+}
 .quick-links-box {
   display: flex;
   gap: 8px;
@@ -1386,6 +1435,11 @@ html, body {
     </div>
   </div>
 
+  <div class="team-status-box" id="teamStatusBox" style="display:none;">
+    <div class="team-status-label">Team Status</div>
+    <div id="teamStatusList"></div>
+  </div>
+
   <div class="quick-links-box" id="quickLinksBox">
     <button class="copy-link-btn" onclick="copyKioskLink()">App</button>
     <button class="copy-link-btn" onclick="copyTeamLink()">Request</button>
@@ -1501,6 +1555,7 @@ html, body {
 
 <div class="submit-page hidden" id="readOnlyView">
   <div class="submit-card" style="max-width:1300px;">
+    <div id="roTabBar" class="ro-tab-bar" style="display:none;"></div>
     <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
       <div>
         <h1 style="margin-bottom:2px;" id="roPageTitle">Workload Overview</h1>
@@ -2631,6 +2686,21 @@ function renderAvailBadge(availData) {
 // Nothing here ever reloads the page or resets what day you're currently browsing.
 function initReadOnlyView() {
   const db = firebase.database();
+
+  // Fully generic — the tab bar is whatever's currently in the shared directory. A newly
+  // added teammate just appears here on their own, no code change needed.
+  db.ref('directory').on('value', snap => {
+    const dir = snap.val() || {};
+    const uids = Object.keys(dir);
+    const tabBar = document.getElementById('roTabBar');
+    if (uids.length <= 1) { tabBar.style.display = 'none'; return; }
+    tabBar.style.display = 'flex';
+    tabBar.innerHTML = uids.map(uid => {
+      const name = (dir[uid] || {}).name || 'Unknown';
+      const isActive = uid === roTargetUid;
+      return `<a class="ro-tab${isActive ? ' active' : ''}" href="?view=1&who=${uid}">${escapeHtml(name)}</a>`;
+    }).join('');
+  });
 
   db.ref(`directory/${roTargetUid}`).on('value', snap => {
     const dirEntry = snap.val();
@@ -3929,6 +3999,44 @@ function attachAvailabilityListener() {
     renderAvailabilityBadge();
   });
 }
+// Fully generic — reads whoever is currently in the shared directory and live-tracks each
+// person's public status. Adding a new teammate never needs any code change here: the
+// moment they log in for the first time and land in the directory, they show up automatically.
+let teamStatusCache = {};
+function attachTeamStatusListener() {
+  firebase.database().ref('directory').on('value', snap => {
+    const dir = snap.val() || {};
+    Object.keys(dir).forEach(uid => {
+      if (uid === currentUid) return; // you already see your own status in the header
+      if (!teamStatusCache[uid]) teamStatusCache[uid] = { name: '', status: null, listening: false };
+      teamStatusCache[uid].name = (dir[uid] || {}).name || 'Unknown';
+      if (!teamStatusCache[uid].listening) {
+        teamStatusCache[uid].listening = true;
+        firebase.database().ref(`availability/${uid}`).on('value', s => {
+          teamStatusCache[uid].status = (s.val() && s.val().status) || null;
+          renderTeamStatusList();
+        });
+      }
+    });
+    renderTeamStatusList();
+  });
+}
+function renderTeamStatusList() {
+  const box = document.getElementById('teamStatusBox');
+  const list = document.getElementById('teamStatusList');
+  if (!box || !list) return;
+  const uids = Object.keys(teamStatusCache);
+  if (uids.length === 0) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  list.innerHTML = uids.map(uid => {
+    const e = teamStatusCache[uid];
+    let dot = '⚪', label = 'Unknown', color = 'var(--muted)';
+    if (e.status === 'available') { dot = '🟢'; label = 'Available'; color = 'var(--good)'; }
+    else if (e.status === 'working') { dot = '🟡'; label = 'Available – Working'; color = 'var(--working)'; }
+    else if (e.status === 'busy' || e.status === 'unavailable') { dot = '🔴'; label = 'Unavailable'; color = 'var(--high)'; }
+    return `<div class="team-status-row"><span>${escapeHtml(e.name)}</span><span class="tsr-status" style="color:${color};">${dot} ${label}</span></div>`;
+  }).join('');
+}
 // The daily fail-safe still applies first each day — a trigger you haven't confirmed yet
 // always wins, so an old override can't silently coast forever without ever being reconfirmed.
 // Once today is confirmed (by any answer), "Available" and "Available – Working" both
@@ -4506,6 +4614,7 @@ if (isSubmitMode) {
     await migrateLegacyDataIfNeeded();
     applyKioskRestrictions();
     attachAvailabilityListener();
+    attachTeamStatusListener();
     loadState();
     loadPending();
     loadDailyQuote();
