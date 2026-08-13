@@ -263,26 +263,37 @@ html, body {
 .team-status-row:first-child { border-top: none; }
 .team-status-row .tsr-status { font-size: 12.5px; font-weight: 600; }
 .ro-tab-bar {
+  position: absolute;
+  top: -22px;
+  left: 22px;
+  right: 22px;
   display: flex;
-  gap: 8px;
+  gap: 3px;
   flex-wrap: wrap;
-  margin-bottom: 18px;
+  z-index: 5;
 }
 .ro-tab {
   background: var(--surface-2);
   border: 1px solid var(--line);
+  border-bottom: none;
   color: var(--muted);
-  padding: 7px 14px;
-  border-radius: 20px;
-  font-size: 12.5px;
+  padding: 9px 18px 7px;
+  border-radius: 8px 8px 0 0;
+  font-size: 12px;
   cursor: pointer;
   text-decoration: none;
+  position: relative;
+  top: 8px;
+  z-index: 5;
 }
 .ro-tab.active {
-  background: var(--med-dim);
+  background: var(--surface);
   border-color: var(--score);
   color: var(--score);
   font-weight: 600;
+  top: 0;
+  z-index: 6;
+  box-shadow: 0 -2px 8px rgba(0,0,0,0.3);
 }
 .quick-links-box {
   display: flex;
@@ -1329,7 +1340,7 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: 45px 20px 20px;
 }
 .submit-card {
   background: var(--surface);
@@ -1338,6 +1349,7 @@ html, body {
   padding: 32px 28px;
   width: 100%;
   max-width: 440px;
+  position: relative;
 }
 .submit-card h1 {
   font-family: 'Oswald', sans-serif;
