@@ -1402,7 +1402,7 @@ html, body {
       <div class="brand">
         <div class="title">The Board</div>
         <div class="date" id="todayDate"></div>
-        <div id="tier2Badge" style="display:none; font-size:10.5px; font-weight:600; color:var(--working); letter-spacing:0.5px; text-transform:uppercase; margin-top:2px;">Tier 2 Account — Assigned Tasks Require Time Blocks</div>
+        <div id="tier2Badge" style="display:none; font-size:10.5px; font-weight:600; color:var(--working); letter-spacing:0.5px; text-transform:uppercase; margin-top:2px;">Assigned-Task Account — Tasks Only Come From Admin/Management</div>
       </div>
       <div class="board-header-controls">
         <div class="avail-wrap">
@@ -1423,6 +1423,7 @@ html, body {
             <button id="submitCodeBtn" style="display:none;" onclick="closeHamburgerMenu(); openSubmitCodeModal()">🔒 Submission Code</button>
             <button id="newProjectBtn" style="display:none;" onclick="closeHamburgerMenu(); openProjectModal()">+ New Team Project</button>
             <button id="assignTaskBtn" style="display:none;" onclick="closeHamburgerMenu(); openAssignTaskModal()">📋 Assign Task</button>
+            <button id="requestTeamChangeBtn" style="display:none;" onclick="closeHamburgerMenu(); openTeamRequestModal()">👥 Request Team Change</button>
             <button id="availSettingsBtn" onclick="closeHamburgerMenu(); openAvailabilitySettings()">⏰ Availability Settings</button>
             <button onclick="closeHamburgerMenu(); doSignOut()">Sign Out</button>
           </div>
@@ -1475,6 +1476,11 @@ html, body {
   <div class="pending-section" id="dateChangeSection" style="display:none;">
     <div class="pending-head">📅 Date Change Requests</div>
     <div class="pending-list" id="dateChangeList"></div>
+  </div>
+
+  <div class="pending-section" id="teamRequestSection" style="display:none;">
+    <div class="pending-head">👥 Team Change Requests</div>
+    <div class="pending-list" id="teamRequestList"></div>
   </div>
 
   <div class="team-section hidden" id="teamSection">
@@ -1918,6 +1924,45 @@ html, body {
   </div>
 </div>
 
+<div class="overlay hidden" id="teamRequestModalOverlay">
+  <div class="modal">
+    <h2>Request Team Change</h2>
+    <div style="color:var(--muted); font-size:13px; margin-bottom:16px;">Goes to the admin for approval — nothing happens until they say yes.</div>
+    <div class="field">
+      <div class="category-picks">
+        <button class="cat-btn" id="teamReqTypeAdd" onclick="pickTeamReqType('add')">Add Someone</button>
+        <button class="cat-btn" id="teamReqTypeRemove" onclick="pickTeamReqType('remove')">Remove Someone</button>
+      </div>
+    </div>
+    <div id="teamReqAddFields">
+      <div class="field-row">
+        <div class="field">
+          <label>Name</label>
+          <input type="text" id="teamReqName" maxlength="30">
+        </div>
+        <div class="field">
+          <label>Email</label>
+          <input type="email" id="teamReqEmail">
+        </div>
+      </div>
+    </div>
+    <div id="teamReqRemoveFields" style="display:none;">
+      <div class="field">
+        <label>Who</label>
+        <select id="teamReqRemoveSelect"></select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Reason (optional)</label>
+      <textarea id="teamReqReason" maxlength="140"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeTeamRequestModal()">Cancel</button>
+      <button class="btn-save" onclick="submitTeamChangeRequest()">Send Request</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay hidden" id="exportModalOverlay">
   <div class="modal">
     <h2>Export Your Data</h2>
@@ -2143,7 +2188,7 @@ const fbAuth = firebase.auth();
 
 let currentUid = null;
 let currentUserName = null;
-let myRole = 'standard'; // 'standard' | 'tier2' — set once on login, drives Tier 2 restrictions throughout
+let myRole = 'management'; // 'admin' | 'management' | 'baseline' — set once on login
 
 async function authToken() {
   if (!fbAuth.currentUser) return null;
@@ -2586,7 +2631,11 @@ async function openManageTeamModal() {
   document.getElementById('manageTeamList').innerHTML = `<div class="ro-empty">Loading…</div>`;
   let dir = null;
   try { dir = await dbGet('directory', true); } catch (e) { dir = null; }
-  const entries = dir ? Object.keys(dir).map(uid => ({ uid, name: (dir[uid] || {}).name || 'Unknown', role: (dir[uid] || {}).role || 'standard' })) : [];
+  const entries = dir ? Object.keys(dir).map(uid => {
+    const rawRole = (dir[uid] || {}).role;
+    const role = (rawRole === 'admin' || rawRole === 'baseline') ? rawRole : (rawRole === 'tier2' ? 'baseline' : 'management');
+    return { uid, name: (dir[uid] || {}).name || 'Unknown', role };
+  }) : [];
   if (entries.length === 0) {
     document.getElementById('manageTeamList').innerHTML = `<div class="ro-empty">No one in the directory yet.</div>`;
     return;
@@ -2597,8 +2646,9 @@ async function openManageTeamModal() {
       <div style="display:flex; gap:8px; align-items:center;">
         ${m.uid === OWNER_UID ? '' : `
           <select class="role-select" onchange="setMemberRole('${m.uid}', this.value)">
-            <option value="standard" ${m.role === 'standard' ? 'selected' : ''}>Standard</option>
-            <option value="tier2" ${m.role === 'tier2' ? 'selected' : ''}>Tier 2 (Assigned)</option>
+            <option value="admin" ${m.role === 'admin' ? 'selected' : ''}>Admin</option>
+            <option value="management" ${m.role === 'management' ? 'selected' : ''}>Management</option>
+            <option value="baseline" ${m.role === 'baseline' ? 'selected' : ''}>Baseline</option>
           </select>
           <button class="remove-member-btn" onclick="removeTeamMember('${m.uid}','${escapeHtml(m.name)}')">Remove</button>
         `}
@@ -3185,10 +3235,10 @@ function openModal(id) {
     document.getElementById('reactivateWrap').style.display = 'none';
     // Tier 2 accounts must schedule time for every task they create — this stays
     // checked and locked on for them instead of being an optional checkbox.
-    document.getElementById('taskTbCheckWrap').style.display = (myRole === 'tier2') ? 'none' : 'block';
-    document.getElementById('inpAddTimeBlock').checked = (myRole === 'tier2');
-    document.getElementById('inlineTbWrap').style.display = (myRole === 'tier2') ? 'block' : 'none';
-    if (myRole === 'tier2') {
+    document.getElementById('taskTbCheckWrap').style.display = (myRole === 'baseline') ? 'none' : 'block';
+    document.getElementById('inpAddTimeBlock').checked = (myRole === 'baseline');
+    document.getElementById('inlineTbWrap').style.display = (myRole === 'baseline') ? 'block' : 'none';
+    if (myRole === 'baseline') {
       populateInlineTbTimeSelects();
       pickInlineTbCategory(selectedInlineTbCategory);
       document.getElementById('inlineTbDate').value = todayStr();
@@ -3302,6 +3352,127 @@ function attachDateChangeResponseListener() {
     });
   });
 }
+
+/* ---------- TEAM CHANGE REQUESTS (Management asks, Admin approves) ---------- */
+let selectedTeamReqType = 'add';
+function pickTeamReqType(t) {
+  selectedTeamReqType = t;
+  document.getElementById('teamReqTypeAdd').className = 'cat-btn' + (t === 'add' ? ' active-available' : '');
+  document.getElementById('teamReqTypeRemove').className = 'cat-btn' + (t === 'remove' ? ' active-busy' : '');
+  document.getElementById('teamReqAddFields').style.display = t === 'add' ? 'block' : 'none';
+  document.getElementById('teamReqRemoveFields').style.display = t === 'remove' ? 'block' : 'none';
+}
+async function openTeamRequestModal() {
+  document.getElementById('teamRequestModalOverlay').classList.remove('hidden');
+  document.getElementById('teamReqName').value = '';
+  document.getElementById('teamReqEmail').value = '';
+  document.getElementById('teamReqReason').value = '';
+  pickTeamReqType('add');
+  const select = document.getElementById('teamReqRemoveSelect');
+  select.innerHTML = `<option value="">Loading…</option>`;
+  let dir = null;
+  try { dir = await dbGet('directory', true); } catch (e) { dir = null; }
+  const entries = dir ? Object.keys(dir).filter(uid => uid !== OWNER_UID).map(uid => ({ uid, name: (dir[uid] || {}).name || 'Unknown' })) : [];
+  select.innerHTML = entries.length === 0
+    ? `<option value="">No one to remove</option>`
+    : entries.map(m => `<option value="${m.uid}">${escapeHtml(m.name)}</option>`).join('');
+}
+function closeTeamRequestModal() {
+  document.getElementById('teamRequestModalOverlay').classList.add('hidden');
+}
+function submitTeamChangeRequest() {
+  const reason = document.getElementById('teamReqReason').value.trim();
+  const requestId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  let payload;
+  if (selectedTeamReqType === 'add') {
+    const name = document.getElementById('teamReqName').value.trim();
+    const email = document.getElementById('teamReqEmail').value.trim();
+    if (!name) { document.getElementById('teamReqName').focus(); return; }
+    if (!email || !email.includes('@')) { document.getElementById('teamReqEmail').focus(); return; }
+    payload = { type: 'add', name, email, reason, status: 'pending', requestedBy: currentUid, requesterName: currentUserName || 'Unknown', requestedAt: Date.now() };
+  } else {
+    const targetUid = document.getElementById('teamReqRemoveSelect').value;
+    const sel = document.getElementById('teamReqRemoveSelect');
+    const targetName = sel.selectedOptions && sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : 'Unknown';
+    if (!targetUid) { alert('Pick who you want removed.'); return; }
+    payload = { type: 'remove', targetUid, targetName, reason, status: 'pending', requestedBy: currentUid, requesterName: currentUserName || 'Unknown', requestedAt: Date.now() };
+  }
+  dbSet(`teamChangeRequests/${requestId}`, payload, true).then(() => {
+    closeTeamRequestModal();
+    alert('Sent to the admin for approval.');
+  }).catch(e => {
+    console.error('team change request failed', e);
+    alert('Something went wrong sending that — try again.');
+  });
+}
+function attachTeamRequestListener() {
+  firebase.database().ref('teamChangeRequests').on('value', snap => {
+    const data = snap.val() || {};
+    const pending = Object.keys(data).map(id => ({ id, ...data[id] })).filter(r => r.status === 'pending');
+    renderTeamChangeRequests(pending);
+  });
+}
+function renderTeamChangeRequests(pending) {
+  const section = document.getElementById('teamRequestSection');
+  const list = document.getElementById('teamRequestList');
+  if (!section || !list) return;
+  if (pending.length === 0) { section.style.display = 'none'; return; }
+  section.style.display = 'block';
+  list.innerHTML = pending.map(r => `
+    <div class="pending-card">
+      <div><b>${escapeHtml(r.requesterName)}</b> requests to ${r.type === 'add' ? 'add' : 'remove'} <b>${escapeHtml(r.type === 'add' ? r.name : r.targetName)}</b>
+        ${r.type === 'add' ? `<div style="color:var(--muted); font-size:12px;">${escapeHtml(r.email)}</div>` : ''}
+        ${r.reason ? `<div style="color:var(--muted); font-size:12px; margin-top:4px;">"${escapeHtml(r.reason)}"</div>` : ''}
+      </div>
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <button class="btn-save" style="flex:1; padding:8px;" onclick="approveTeamChangeRequest('${r.id}')">Approve</button>
+        <button class="btn-cancel" style="flex:1; padding:8px;" onclick="denyTeamChangeRequest('${r.id}')">Deny</button>
+      </div>
+    </div>
+  `).join('');
+}
+async function approveTeamChangeRequest(requestId) {
+  let data = null;
+  try { data = await dbGet(`teamChangeRequests/${requestId}`, true); } catch (e) { data = null; }
+  if (!data) return;
+  try {
+    if (data.type === 'add') {
+      await dbSet(`invites/${inviteKey(data.email)}`, { name: data.name, email: data.email, addedAt: todayStr() }, true);
+    } else if (data.type === 'remove' && data.targetUid) {
+      await dbSet(`directory/${data.targetUid}`, null, true);
+      await dbSet(`busyTimes/${data.targetUid}`, null, true);
+      await dbSet(`publicTasks/${data.targetUid}`, null, true);
+    }
+    await dbSet(`teamChangeRequests/${requestId}/status`, 'approved', true);
+  } catch (e) {
+    console.error('approve team request failed', e);
+    alert('Something went wrong approving that — try again.');
+  }
+}
+function denyTeamChangeRequest(requestId) {
+  dbSet(`teamChangeRequests/${requestId}/status`, 'denied', true).catch(e => console.error('deny team request failed', e));
+}
+// Requester-side: approving an "add" still leaves the actual Firebase Console step and Send
+// Setup Link to the admin — this just confirms the request itself was accepted.
+let handledTeamRequestIds = new Set();
+function attachTeamRequestResponseListener() {
+  firebase.database().ref('teamChangeRequests').on('value', snap => {
+    const data = snap.val() || {};
+    Object.keys(data).forEach(id => {
+      const r = data[id];
+      if (r.requestedBy !== currentUid) return;
+      if (r.status === 'pending' || handledTeamRequestIds.has(id)) return;
+      handledTeamRequestIds.add(id);
+      if (r.status === 'approved') {
+        alert(r.type === 'add' ? `Approved — ${r.name} is now in Pending Invites for the admin to finish setting up.` : `Approved — ${r.targetName} has been removed.`);
+      } else if (r.status === 'denied') {
+        alert(`Your request to ${r.type === 'add' ? 'add ' + r.name : 'remove ' + r.targetName} was denied.`);
+      }
+      firebase.database().ref(`teamChangeRequests/${id}`).remove();
+    });
+  });
+}
+
 function pickPriority(p) {
   selectedPriority = p;
   ['high','medium','low'].forEach(x => {
@@ -3438,7 +3609,7 @@ function saveTask() {
 
   // Tier 2 accounts can't save a new task at all without a valid linked time block —
   // this is a hard requirement, not just a default-checked checkbox someone could bypass.
-  if (!editingTaskId && myRole === 'tier2') {
+  if (!editingTaskId && myRole === 'baseline') {
     const tbDateVal = document.getElementById('inlineTbDate').value;
     const tbStartVal = document.getElementById('inlineTbStart').value;
     const tbEndVal = document.getElementById('inlineTbEnd').value;
@@ -4935,12 +5106,38 @@ function applyKioskRestrictions() {
     if (el) el.style.display = 'none';
   });
 }
-// Most Tier 2 enforcement happens inline, right where it matters (openModal, saveTask) via
-// direct myRole checks — this just adds the one visible signal that something's different
-// about this account, so the locked-down New Task flow doesn't look like a bug.
-function applyTier2Restrictions() {
+// All three tiers' visibility rules live here, in one place, rather than scattered
+// owner-only checks — makes it possible to see every restriction at a glance.
+function applyRoleRestrictions() {
+  const isAdmin = myRole === 'admin';
+  const isManagement = myRole === 'management';
+  const isBaseline = myRole === 'baseline';
+
+  // Admin-only: personal-account settings that were explicitly called out as admin-exclusive.
+  ['editNameBtn', 'exportDataBtn', 'manageTeamBtn', 'submitCodeBtn'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = isAdmin ? 'inline-block' : 'none';
+  });
+
+  // Admin + Management: assigning work and standing up shared projects.
+  ['newProjectBtn', 'assignTaskBtn'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = (isAdmin || isManagement) ? 'inline-block' : 'none';
+  });
+
+  // Management-only: they don't get direct Manage Team access — just the ability to ask.
+  const reqBtn = document.getElementById('requestTeamChangeBtn');
+  if (reqBtn) reqBtn.style.display = isManagement ? 'inline-block' : 'none';
+
+  // Baseline: no free-form task creation, and none of the extra sharing links — just their
+  // assigned work, their own time blocks, and their availability status.
+  const addTaskBtn = document.getElementById('addTaskBtn');
+  if (addTaskBtn) addTaskBtn.style.display = isBaseline ? 'none' : 'inline-block';
+  const quickLinks = document.getElementById('quickLinksBox');
+  if (quickLinks) quickLinks.style.display = isBaseline ? 'none' : 'flex';
+
   const badge = document.getElementById('tier2Badge');
-  if (badge) badge.style.display = (myRole === 'tier2') ? 'block' : 'none';
+  if (badge) badge.style.display = isBaseline ? 'block' : 'none';
 }
 
 let sessionStarted = false; // guards against setting up duplicate timers if auth state fires more than once
@@ -4967,28 +5164,32 @@ if (isSubmitMode) {
     document.getElementById('authScreen').classList.add('hidden');
     document.getElementById('mainView').classList.remove('hidden');
     await updateDirectoryEntry();
+
+    // The original owner account is always admin, full stop, regardless of whatever the
+    // directory's role field says — a safety net so it's never possible to lock yourself out.
+    // Anyone else defaults to Management if no role has ever been set, since that preserves
+    // the exact access every existing team member already has today until you deliberately
+    // choose to restrict someone.
     if (currentUid === OWNER_UID) {
-      const btn = document.getElementById('newProjectBtn');
-      if (btn) btn.style.display = 'inline-block';
-      const teamBtn = document.getElementById('manageTeamBtn');
-      if (teamBtn) teamBtn.style.display = 'inline-block';
-      const codeBtn = document.getElementById('submitCodeBtn');
-      if (codeBtn) codeBtn.style.display = 'inline-block';
-      const assignBtn = document.getElementById('assignTaskBtn');
-      if (assignBtn) assignBtn.style.display = 'inline-block';
+      myRole = 'admin';
+    } else {
+      try {
+        const roleData = await dbGet(`directory/${currentUid}/role`, true);
+        myRole = (roleData === 'admin' || roleData === 'baseline' || roleData === 'tier2') ? (roleData === 'tier2' ? 'baseline' : roleData) : 'management';
+      } catch (e) { myRole = 'management'; }
     }
-    try {
-      const roleData = await dbGet(`directory/${currentUid}/role`, true);
-      myRole = roleData || 'standard';
-    } catch (e) { myRole = 'standard'; }
-    applyTier2Restrictions();
+    applyRoleRestrictions();
     await migrateLegacyDataIfNeeded();
     applyKioskRestrictions();
     attachAvailabilityListener();
     attachTeamStatusListener();
     attachAssignmentListener();
     attachDateChangeResponseListener();
-    if (currentUid === OWNER_UID) attachDateChangeRequestListener();
+    attachTeamRequestResponseListener();
+    if (myRole === 'admin') {
+      attachDateChangeRequestListener();
+      attachTeamRequestListener();
+    }
     loadState();
     loadPending();
     loadDailyQuote();
