@@ -5114,7 +5114,7 @@ function applyRoleRestrictions() {
   const isBaseline = myRole === 'baseline';
 
   // Admin-only: personal-account settings that were explicitly called out as admin-exclusive.
-  ['editNameBtn', 'exportDataBtn', 'manageTeamBtn', 'submitCodeBtn'].forEach(id => {
+  ['editNameBtn', 'exportDataBtn', 'manageTeamBtn', 'submitCodeBtn', 'tbClearAllBtn'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = isAdmin ? 'inline-block' : 'none';
   });
@@ -5181,6 +5181,12 @@ if (isSubmitMode) {
     applyRoleRestrictions();
     await migrateLegacyDataIfNeeded();
     applyKioskRestrictions();
+    // loadState must fully finish — and correctly populate tasks/timeBlocks for THIS uid —
+    // before anything that reads or pushes into those same arrays gets a chance to run.
+    // Attaching listeners first, with loadState firing in the background afterward, was a
+    // real race: a listener could act on stale/empty data moments before loadState's own
+    // fetch overwrote it, or push into an array that then got discarded by that overwrite.
+    await loadState();
     attachAvailabilityListener();
     attachTeamStatusListener();
     attachAssignmentListener();
@@ -5190,7 +5196,6 @@ if (isSubmitMode) {
       attachDateChangeRequestListener();
       attachTeamRequestListener();
     }
-    loadState();
     loadPending();
     loadDailyQuote();
     loadTeamProjects();
