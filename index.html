@@ -836,6 +836,8 @@ html, body {
   font-size: 13px;
   cursor: pointer;
 }
+.pp-btn:disabled, .cat-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.field input:disabled, .field textarea:disabled { opacity: 0.55; cursor: not-allowed; }
 .pp-btn.active-high { background: var(--high-dim); border-color: var(--high); color: var(--high); }
 .pp-btn.active-medium { background: var(--med-dim); border-color: var(--med); color: var(--med); }
 .pp-btn.active-low { background: var(--low-dim); border-color: var(--low); color: var(--low); }
@@ -1219,6 +1221,9 @@ html, body {
 .cat-btn.active-imca { background: var(--high-dim); border-color: var(--high); color: var(--high); }
 .cat-btn.active-riivet { background: #123018; border-color: var(--good); color: var(--good); }
 .cat-btn.active-family { background: var(--family-dim); border-color: var(--family); color: var(--family); }
+.cat-btn.active-busy { background: var(--high-dim); border-color: var(--high); color: var(--high); }
+.cat-btn.active-available { background: #16241a; border-color: var(--good); color: var(--good); }
+.cat-btn.active-working { background: #2e2410; border-color: var(--working); color: var(--working); }
 .field-row { display: flex; gap: 10px; }
 .field-row .field { flex: 1; }
 .schedule-btn-wrap { margin-bottom: 14px; }
@@ -1317,6 +1322,15 @@ html, body {
   font-size: 12px;
   cursor: pointer;
 }
+.role-select {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--chalk);
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
 .tb-recur-note {
   font-size: 12px;
   color: var(--score);
@@ -1388,6 +1402,7 @@ html, body {
       <div class="brand">
         <div class="title">The Board</div>
         <div class="date" id="todayDate"></div>
+        <div id="tier2Badge" style="display:none; font-size:10.5px; font-weight:600; color:var(--working); letter-spacing:0.5px; text-transform:uppercase; margin-top:2px;">Tier 2 Account — Assigned Tasks Require Time Blocks</div>
       </div>
       <div class="board-header-controls">
         <div class="avail-wrap">
@@ -1407,6 +1422,7 @@ html, body {
             <button id="manageTeamBtn" style="display:none;" onclick="closeHamburgerMenu(); openManageTeamModal()">👥 Manage Team</button>
             <button id="submitCodeBtn" style="display:none;" onclick="closeHamburgerMenu(); openSubmitCodeModal()">🔒 Submission Code</button>
             <button id="newProjectBtn" style="display:none;" onclick="closeHamburgerMenu(); openProjectModal()">+ New Team Project</button>
+            <button id="assignTaskBtn" style="display:none;" onclick="closeHamburgerMenu(); openAssignTaskModal()">📋 Assign Task</button>
             <button id="availSettingsBtn" onclick="closeHamburgerMenu(); openAvailabilitySettings()">⏰ Availability Settings</button>
             <button onclick="closeHamburgerMenu(); doSignOut()">Sign Out</button>
           </div>
@@ -1454,6 +1470,11 @@ html, body {
   <div class="pending-section" id="pendingSection" style="display:none;">
     <div class="pending-head">🔔 Pending Review (<span id="pendingCount">0</span>)</div>
     <div class="pending-list" id="pendingList"></div>
+  </div>
+
+  <div class="pending-section" id="dateChangeSection" style="display:none;">
+    <div class="pending-head">📅 Date Change Requests</div>
+    <div class="pending-list" id="dateChangeList"></div>
   </div>
 
   <div class="team-section hidden" id="teamSection">
@@ -1602,6 +1623,9 @@ html, body {
 <div class="overlay hidden" id="modalOverlay">
   <div class="modal">
     <h2 id="taskModalTitle">New Task</h2>
+    <div id="requiredTaskBadge" style="display:none; background:var(--high-dim); border:1px solid var(--high); color:var(--high); font-size:11.5px; font-weight:600; padding:6px 10px; border-radius:6px; margin-bottom:14px;">
+      🔒 Required — assigned by admin. Can't be deleted, but you can request a delivery date change.
+    </div>
     <div class="field">
       <label>Task Title</label>
       <input type="text" id="inpTitle" placeholder="e.g. Restock supplements" maxlength="80">
@@ -1687,6 +1711,9 @@ html, body {
     <div class="modal-actions" id="modalDeleteWrap" style="display:none;">
       <button class="del-btn-full" style="flex:1; padding:12px;" onclick="deleteFromModal()">Delete This Task</button>
     </div>
+    <div class="modal-actions" id="requestDateChangeWrap" style="display:none;">
+      <button class="btn-save" style="flex:1; background:var(--working); color:#2b2200;" onclick="openRequestDateChangeModal()">Request Delivery Date Change</button>
+    </div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeModal()">Cancel</button>
       <button class="btn-save" id="taskSaveBtn" onclick="saveTask()">Add to Board</button>
@@ -1723,6 +1750,14 @@ html, body {
         <button class="cat-btn" id="esCatImca" onclick="pickEsCategory('imca')">IMCA</button>
         <button class="cat-btn" id="esCatRiivet" onclick="pickEsCategory('riivet')">Riivet</button>
         <button class="cat-btn" id="esCatFamily" onclick="pickEsCategory('family')">Family</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>While This Is Active, Show Me As</label>
+      <div class="category-picks">
+        <button class="cat-btn" id="esAvailBusy" onclick="pickEsAvailStatus('busy')">🔴 Busy</button>
+        <button class="cat-btn" id="esAvailAvailable" onclick="pickEsAvailStatus('available')">🟢 Available</button>
+        <button class="cat-btn" id="esAvailWorking" onclick="pickEsAvailStatus('working')">🟡 Working</button>
       </div>
     </div>
     <div class="field-row">
@@ -1830,6 +1865,59 @@ html, body {
   </div>
 </div>
 
+<div class="overlay hidden" id="assignTaskModalOverlay">
+  <div class="modal">
+    <h2>Assign Task</h2>
+    <div style="color:var(--muted); font-size:13px; margin-bottom:16px;">Goes straight onto their board — no accept/reject. They can complete it or request a delivery date change, but can't delete it.</div>
+    <div class="field">
+      <label>Assign To</label>
+      <select id="assignToSelect"></select>
+    </div>
+    <div class="field">
+      <label>Title</label>
+      <input type="text" id="assignTitle" maxlength="80">
+    </div>
+    <div class="field">
+      <label>Details (optional)</label>
+      <textarea id="assignSub" maxlength="140"></textarea>
+    </div>
+    <div class="field">
+      <label>Category</label>
+      <div class="category-picks">
+        <button class="cat-btn" id="assignCatImca" onclick="pickAssignCategory('imca')">IMCA</button>
+        <button class="cat-btn" id="assignCatRiivet" onclick="pickAssignCategory('riivet')">Riivet</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Delivery Date</label>
+      <input type="date" id="assignDue">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeAssignTaskModal()">Cancel</button>
+      <button class="btn-save" onclick="saveAssignedTask()">Assign</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="requestDateChangeModalOverlay">
+  <div class="modal">
+    <h2>Request Delivery Date Change</h2>
+    <div style="color:var(--muted); font-size:13px; margin-bottom:16px;">Sends a request to the admin — the date only changes once they approve it.</div>
+    <div class="field">
+      <label>New Requested Date</label>
+      <input type="date" id="reqNewDate">
+    </div>
+    <div class="field">
+      <label>Reason (optional)</label>
+      <textarea id="reqReason" maxlength="140" placeholder="Why the change is needed"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeRequestDateChangeModal()">Cancel</button>
+      <button class="btn-save" onclick="submitDateChangeRequest()">Send Request</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay hidden" id="exportModalOverlay">
   <div class="modal">
     <h2>Export Your Data</h2>
@@ -1907,6 +1995,14 @@ html, body {
         <button class="cat-btn" id="catImca" onclick="pickCategory('imca')">IMCA</button>
         <button class="cat-btn" id="catRiivet" onclick="pickCategory('riivet')">Riivet</button>
         <button class="cat-btn" id="catFamily" onclick="pickCategory('family')">Family</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>While This Is Active, Show Me As</label>
+      <div class="category-picks">
+        <button class="cat-btn" id="tbAvailBusy" onclick="pickTbAvailStatus('busy')">🔴 Busy</button>
+        <button class="cat-btn" id="tbAvailAvailable" onclick="pickTbAvailStatus('available')">🟢 Available</button>
+        <button class="cat-btn" id="tbAvailWorking" onclick="pickTbAvailStatus('working')">🟡 Working</button>
       </div>
     </div>
     <div class="field">
@@ -2047,6 +2143,7 @@ const fbAuth = firebase.auth();
 
 let currentUid = null;
 let currentUserName = null;
+let myRole = 'standard'; // 'standard' | 'tier2' — set once on login, drives Tier 2 restrictions throughout
 
 async function authToken() {
   if (!fbAuth.currentUser) return null;
@@ -2080,7 +2177,11 @@ const urlParams = new URLSearchParams(location.search);
 const isSubmitMode = urlParams.get('submit') === '1';
 const isKioskMode = urlParams.get('kiosk') === '1';
 const isViewOnlyMode = urlParams.get('view') === '1';
-const roTargetUid = urlParams.get('who') || OWNER_UID; // whose board this view-only page shows
+const rawWhoParam = urlParams.get('who');
+// A link generated while sign-in hadn't fully resolved yet could carry a broken value
+// like the literal text "null" or "undefined" — treat that exactly like no value at all
+// rather than trying to look up a person who was never real.
+const roTargetUid = (rawWhoParam && rawWhoParam !== 'null' && rawWhoParam !== 'undefined') ? rawWhoParam : OWNER_UID;
 
 let tasks = [];
 let pendingQueue = [];
@@ -2485,7 +2586,7 @@ async function openManageTeamModal() {
   document.getElementById('manageTeamList').innerHTML = `<div class="ro-empty">Loading…</div>`;
   let dir = null;
   try { dir = await dbGet('directory', true); } catch (e) { dir = null; }
-  const entries = dir ? Object.keys(dir).map(uid => ({ uid, name: (dir[uid] || {}).name || 'Unknown' })) : [];
+  const entries = dir ? Object.keys(dir).map(uid => ({ uid, name: (dir[uid] || {}).name || 'Unknown', role: (dir[uid] || {}).role || 'standard' })) : [];
   if (entries.length === 0) {
     document.getElementById('manageTeamList').innerHTML = `<div class="ro-empty">No one in the directory yet.</div>`;
     return;
@@ -2493,9 +2594,20 @@ async function openManageTeamModal() {
   document.getElementById('manageTeamList').innerHTML = entries.map(m => `
     <div class="team-member-row">
       <span>${escapeHtml(m.name)}${m.uid === OWNER_UID ? ' (owner)' : ''}</span>
-      ${m.uid === OWNER_UID ? '' : `<button class="remove-member-btn" onclick="removeTeamMember('${m.uid}','${escapeHtml(m.name)}')">Remove</button>`}
+      <div style="display:flex; gap:8px; align-items:center;">
+        ${m.uid === OWNER_UID ? '' : `
+          <select class="role-select" onchange="setMemberRole('${m.uid}', this.value)">
+            <option value="standard" ${m.role === 'standard' ? 'selected' : ''}>Standard</option>
+            <option value="tier2" ${m.role === 'tier2' ? 'selected' : ''}>Tier 2 (Assigned)</option>
+          </select>
+          <button class="remove-member-btn" onclick="removeTeamMember('${m.uid}','${escapeHtml(m.name)}')">Remove</button>
+        `}
+      </div>
     </div>
   `).join('');
+}
+function setMemberRole(uid, role) {
+  dbSet(`directory/${uid}/role`, role, true).catch(e => console.error('set role failed', e));
 }
 async function renderInviteList() {
   const el = document.getElementById('inviteList');
@@ -2711,8 +2823,8 @@ function initReadOnlyView() {
 
   db.ref(`directory/${roTargetUid}`).on('value', snap => {
     const dirEntry = snap.val();
-    const personName = (dirEntry && dirEntry.name) ? dirEntry.name : 'This';
-    document.getElementById('roPageTitle').textContent = `${personName}'s Board`;
+    const personName = (dirEntry && dirEntry.name) ? dirEntry.name : null;
+    document.getElementById('roPageTitle').textContent = personName ? `${personName}'s Board` : 'Workload Overview';
   });
   document.getElementById('roSubmitLink').href = location.pathname + '?submit=1&who=' + roTargetUid;
 
@@ -2943,6 +3055,7 @@ function generateRecurringTimeBlockInstances() {
       timeBlocks.push({
         id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6) + i,
         title: template.title, note: template.note, category: template.category,
+        availStatus: template.availStatus || 'busy',
         date: dateKey, start: template.start, end: template.end,
         taskId: null, recurringId: template.id
       });
@@ -3024,7 +3137,6 @@ function openModal(id) {
     pickTaskCategory(task.category || 'imca');
     document.getElementById('repeatFieldWrap').style.display = 'none';
     document.getElementById('taskSaveBtn').textContent = 'Save Changes';
-    document.getElementById('modalDeleteWrap').style.display = 'flex';
     document.getElementById('scheduleBtnWrap').style.display = 'block';
     if (task.completed) {
       document.getElementById('reactivateWrap').style.display = 'flex';
@@ -3036,6 +3148,19 @@ function openModal(id) {
     // this inline checkbox is only for the moment of creating a brand new task.
     document.getElementById('taskTbCheckWrap').style.display = 'none';
     document.getElementById('inlineTbWrap').style.display = 'none';
+
+    // Required (admin-assigned) tasks: locked down to viewing + completing + requesting a
+    // date change. Nothing about them — title, category, due date — is editable here; a
+    // delivery date only ever changes through admin approval, never a direct edit.
+    const isRequired = !!task.required;
+    document.getElementById('requiredTaskBadge').style.display = isRequired ? 'block' : 'none';
+    document.getElementById('inpTitle').disabled = isRequired;
+    document.getElementById('inpSub').disabled = isRequired;
+    document.getElementById('inpDue').disabled = isRequired || !task.due;
+    document.querySelectorAll('#modalOverlay .priority-picks .pp-btn').forEach(b => b.disabled = isRequired);
+    document.querySelectorAll('#modalOverlay .category-picks .cat-btn').forEach(b => b.disabled = isRequired);
+    document.getElementById('modalDeleteWrap').style.display = isRequired ? 'none' : 'flex';
+    document.getElementById('requestDateChangeWrap').style.display = isRequired ? 'flex' : 'none';
   } else {
     editingTaskId = null;
     document.getElementById('taskModalTitle').textContent = 'New Task';
@@ -3050,14 +3175,30 @@ function openModal(id) {
     document.getElementById('repeatFieldWrap').style.display = 'block';
     document.getElementById('taskSaveBtn').textContent = 'Add to Board';
     document.getElementById('modalDeleteWrap').style.display = 'none';
+    document.getElementById('requestDateChangeWrap').style.display = 'none';
+    document.getElementById('requiredTaskBadge').style.display = 'none';
+    document.getElementById('inpTitle').disabled = false;
+    document.getElementById('inpSub').disabled = false;
+    document.querySelectorAll('#modalOverlay .priority-picks .pp-btn').forEach(b => b.disabled = false);
+    document.querySelectorAll('#modalOverlay .category-picks .cat-btn').forEach(b => b.disabled = false);
     document.getElementById('scheduleBtnWrap').style.display = 'none';
     document.getElementById('reactivateWrap').style.display = 'none';
-    document.getElementById('taskTbCheckWrap').style.display = 'block';
-    document.getElementById('inpAddTimeBlock').checked = false;
-    document.getElementById('inlineTbWrap').style.display = 'none';
-    document.getElementById('inlineTbDate').value = '';
-    document.getElementById('inlineTbStart').value = '';
-    document.getElementById('inlineTbEnd').value = '';
+    // Tier 2 accounts must schedule time for every task they create — this stays
+    // checked and locked on for them instead of being an optional checkbox.
+    document.getElementById('taskTbCheckWrap').style.display = (myRole === 'tier2') ? 'none' : 'block';
+    document.getElementById('inpAddTimeBlock').checked = (myRole === 'tier2');
+    document.getElementById('inlineTbWrap').style.display = (myRole === 'tier2') ? 'block' : 'none';
+    if (myRole === 'tier2') {
+      populateInlineTbTimeSelects();
+      pickInlineTbCategory(selectedInlineTbCategory);
+      document.getElementById('inlineTbDate').value = todayStr();
+      document.getElementById('inlineTbStart').value = TB_START_MIN;
+      document.getElementById('inlineTbEnd').value = TB_START_MIN + TB_SLOT_MIN;
+    } else {
+      document.getElementById('inlineTbDate').value = '';
+      document.getElementById('inlineTbStart').value = '';
+      document.getElementById('inlineTbEnd').value = '';
+    }
   }
   document.getElementById('modalOverlay').classList.remove('hidden');
   setTimeout(() => document.getElementById('inpTitle').focus(), 50);
@@ -3071,6 +3212,95 @@ function toggleNoDueDate() {
 function closeModal() {
   document.getElementById('modalOverlay').classList.add('hidden');
   editingTaskId = null;
+}
+function openRequestDateChangeModal() {
+  if (!editingTaskId) return;
+  document.getElementById('reqNewDate').value = '';
+  document.getElementById('reqReason').value = '';
+  document.getElementById('requestDateChangeModalOverlay').classList.remove('hidden');
+}
+function closeRequestDateChangeModal() {
+  document.getElementById('requestDateChangeModalOverlay').classList.add('hidden');
+}
+function submitDateChangeRequest() {
+  const task = tasks.find(t => t.id === editingTaskId);
+  if (!task) return;
+  const newDate = document.getElementById('reqNewDate').value;
+  const reason = document.getElementById('reqReason').value.trim();
+  if (!newDate) { document.getElementById('reqNewDate').focus(); return; }
+
+  const requestId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  dbSet(`dateChangeRequests/${requestId}`, {
+    requestedBy: currentUid, requesterName: currentUserName || 'Unknown',
+    taskId: task.id, taskTitle: task.title,
+    currentDue: task.due, requestedDue: newDate, reason,
+    status: 'pending', requestedAt: Date.now()
+  }, true).then(() => {
+    closeRequestDateChangeModal();
+    closeModal();
+    alert('Request sent — the date only changes once it\'s approved.');
+  }).catch(e => {
+    console.error('date change request failed', e);
+    alert('Something went wrong sending that — try again.');
+  });
+}
+// Owner-side: every pending request, from anyone, shows up here for approval.
+function attachDateChangeRequestListener() {
+  firebase.database().ref('dateChangeRequests').on('value', snap => {
+    const data = snap.val() || {};
+    const pending = Object.keys(data)
+      .map(id => ({ id, ...data[id] }))
+      .filter(r => r.status === 'pending');
+    renderDateChangeRequests(pending);
+  });
+}
+function renderDateChangeRequests(pending) {
+  const section = document.getElementById('dateChangeSection');
+  const list = document.getElementById('dateChangeList');
+  if (!section || !list) return;
+  if (pending.length === 0) { section.style.display = 'none'; return; }
+  section.style.display = 'block';
+  list.innerHTML = pending.map(r => `
+    <div class="pending-card">
+      <div><b>${escapeHtml(r.requesterName)}</b> wants to move <b>${escapeHtml(r.taskTitle)}</b>
+        from ${r.currentDue ? fmtDate(r.currentDue) : 'no date'} to <b>${fmtDate(r.requestedDue)}</b>
+        ${r.reason ? `<div style="color:var(--muted); font-size:12px; margin-top:4px;">"${escapeHtml(r.reason)}"</div>` : ''}
+      </div>
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <button class="btn-save" style="flex:1; padding:8px;" onclick="respondDateChangeRequest('${r.id}','approved')">Approve</button>
+        <button class="btn-cancel" style="flex:1; padding:8px;" onclick="respondDateChangeRequest('${r.id}','denied')">Deny</button>
+      </div>
+    </div>
+  `).join('');
+}
+function respondDateChangeRequest(requestId, status) {
+  dbSet(`dateChangeRequests/${requestId}/status`, status, true).catch(e => console.error('respond to date change failed', e));
+}
+// Requester-side: the change only ever gets applied by writing to your OWN task list, using
+// your own permissions — the admin's approval just flips a shared flag, never touches your data directly.
+let handledDateChangeIds = new Set();
+function attachDateChangeResponseListener() {
+  firebase.database().ref('dateChangeRequests').on('value', snap => {
+    const data = snap.val() || {};
+    Object.keys(data).forEach(id => {
+      const r = data[id];
+      if (r.requestedBy !== currentUid) return;
+      if (r.status === 'pending' || handledDateChangeIds.has(id)) return;
+      handledDateChangeIds.add(id);
+      if (r.status === 'approved') {
+        const task = tasks.find(t => t.id === r.taskId);
+        if (task) {
+          task.due = r.requestedDue;
+          saveTasks();
+          render();
+        }
+        alert(`Approved — "${r.taskTitle}" is now due ${fmtDate(r.requestedDue)}.`);
+      } else if (r.status === 'denied') {
+        alert(`Your date change request for "${r.taskTitle}" was denied.`);
+      }
+      firebase.database().ref(`dateChangeRequests/${id}`).remove();
+    });
+  });
 }
 function pickPriority(p) {
   selectedPriority = p;
@@ -3087,6 +3317,78 @@ function pickTaskCategory(c) {
   });
 }
 let selectedInlineTbCategory = 'personal';
+let selectedAssignCategory = 'imca';
+function pickAssignCategory(c) {
+  selectedAssignCategory = c;
+  ['imca', 'riivet'].forEach(x => {
+    const el = document.getElementById('assignCat' + x[0].toUpperCase() + x.slice(1));
+    el.className = 'cat-btn' + (x === c ? ' active-' + c : '');
+  });
+}
+async function openAssignTaskModal() {
+  document.getElementById('assignTaskModalOverlay').classList.remove('hidden');
+  document.getElementById('assignTitle').value = '';
+  document.getElementById('assignSub').value = '';
+  document.getElementById('assignDue').value = '';
+  pickAssignCategory('imca');
+  const select = document.getElementById('assignToSelect');
+  select.innerHTML = `<option value="">Loading…</option>`;
+  let dir = null;
+  try { dir = await dbGet('directory', true); } catch (e) { dir = null; }
+  const entries = dir ? Object.keys(dir).filter(uid => uid !== OWNER_UID).map(uid => ({ uid, name: (dir[uid] || {}).name || 'Unknown' })) : [];
+  select.innerHTML = entries.length === 0
+    ? `<option value="">No team members yet</option>`
+    : entries.map(m => `<option value="${m.uid}">${escapeHtml(m.name)}</option>`).join('');
+}
+function closeAssignTaskModal() {
+  document.getElementById('assignTaskModalOverlay').classList.add('hidden');
+}
+function saveAssignedTask() {
+  const targetUid = document.getElementById('assignToSelect').value;
+  const title = document.getElementById('assignTitle').value.trim();
+  const sub = document.getElementById('assignSub').value.trim();
+  const due = document.getElementById('assignDue').value;
+  if (!targetUid) { alert('Pick who this is for.'); return; }
+  if (!title) { document.getElementById('assignTitle').focus(); return; }
+  if (!due) { document.getElementById('assignDue').focus(); return; }
+
+  const assignmentId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  dbSet(`assignments/${targetUid}/${assignmentId}`, {
+    title, sub, category: selectedAssignCategory, due,
+    assignedBy: currentUid, assignedAt: Date.now()
+  }, true).then(() => {
+    closeAssignTaskModal();
+    alert('Assigned. It\'ll land on their board next time they open the app.');
+  }).catch(e => {
+    console.error('assign task failed', e);
+    alert('Something went wrong sending that — try again.');
+  });
+}
+// Auto-processing inbox: an assignment is never written directly into someone else's private
+// task list — it lands here first, and the TARGET's own client (with their own permissions)
+// turns it into a real task on their own board, then clears it. Nobody's private data is ever
+// written to by another account.
+let processedAssignmentIds = new Set();
+function attachAssignmentListener() {
+  firebase.database().ref(`assignments/${currentUid}`).on('value', snap => {
+    const data = snap.val();
+    if (!data) return;
+    Object.keys(data).forEach(assignmentId => {
+      if (processedAssignmentIds.has(assignmentId)) return;
+      processedAssignmentIds.add(assignmentId);
+      const a = data[assignmentId];
+      tasks.push({
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        title: a.title, sub: a.sub || '', priority: 'medium', category: a.category || 'imca',
+        due: a.due, completed: false, completedAt: null,
+        required: true, assignedBy: a.assignedBy || OWNER_UID
+      });
+      saveTasks();
+      render();
+      firebase.database().ref(`assignments/${currentUid}/${assignmentId}`).remove();
+    });
+  });
+}
 function pickInlineTbCategory(c) {
   selectedInlineTbCategory = c;
   ['personal', 'imca', 'riivet', 'family'].forEach(x => {
@@ -3133,6 +3435,18 @@ function saveTask() {
   if (!title) { document.getElementById('inpTitle').focus(); return; }
   const sub = document.getElementById('inpSub').value.trim();
   const due = document.getElementById('inpDue').value;
+
+  // Tier 2 accounts can't save a new task at all without a valid linked time block —
+  // this is a hard requirement, not just a default-checked checkbox someone could bypass.
+  if (!editingTaskId && myRole === 'tier2') {
+    const tbDateVal = document.getElementById('inlineTbDate').value;
+    const tbStartVal = document.getElementById('inlineTbStart').value;
+    const tbEndVal = document.getElementById('inlineTbEnd').value;
+    if (!tbDateVal || tbStartVal === '' || tbEndVal === '' || parseInt(tbEndVal, 10) <= parseInt(tbStartVal, 10)) {
+      alert('A time block is required for every task — set a valid date and time before saving.');
+      return;
+    }
+  }
 
   if (editingTaskId) {
     const task = tasks.find(x => x.id === editingTaskId);
@@ -3181,7 +3495,7 @@ function saveTask() {
     if (tbStartVal !== '' && tbEndVal !== '' && tbEnd > tbStart) {
       timeBlocks.push({
         id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-        title, note: sub, category: selectedInlineTbCategory,
+        title, note: sub, category: selectedInlineTbCategory, availStatus: 'busy',
         date: tbDate, start: tbStart, end: tbEnd, taskId: newTaskId
       });
       saveTimeBlocks();
@@ -3474,7 +3788,7 @@ function confirmAccept() {
   if (hadTimeRequest) {
     timeBlocks.push({
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-      title: p.title, note: `Requested by ${p.name}`, category: 'personal',
+      title: p.title, note: `Requested by ${p.name}`, category: 'personal', availStatus: 'busy',
       date: p.reqDate, start: p.reqStart, end: p.reqEnd, taskId: newTaskId
     });
     saveTimeBlocks();
@@ -3644,6 +3958,14 @@ function pickEsCategory(c) {
     el.className = 'cat-btn' + (x === c ? ' active-' + c : '');
   });
 }
+let esSelectedAvailStatus = 'busy';
+function pickEsAvailStatus(s) {
+  esSelectedAvailStatus = s;
+  ['busy', 'available', 'working'].forEach(x => {
+    const el = document.getElementById('esAvail' + x[0].toUpperCase() + x.slice(1));
+    el.className = 'cat-btn' + (x === s ? ' active-' + x : '');
+  });
+}
 function populateEsTimeSelects() {
   const s = document.getElementById('esStart');
   const e = document.getElementById('esEnd');
@@ -3663,6 +3985,7 @@ function openEditSeriesModal(templateId) {
   document.getElementById('esTitle').value = t.title;
   document.getElementById('esNote').value = t.note || '';
   pickEsCategory(t.category || 'personal');
+  pickEsAvailStatus(t.availStatus || 'busy');
   populateEsTimeSelects();
   document.getElementById('esStart').value = t.start;
   document.getElementById('esEnd').value = t.end;
@@ -3698,6 +4021,7 @@ function saveEditedSeries() {
   t.title = title;
   t.note = note;
   t.category = esSelectedCategory;
+  t.availStatus = esSelectedAvailStatus;
   t.start = start;
   t.end = end;
   if (daysOfWeek) t.daysOfWeek = daysOfWeek;
@@ -3709,6 +4033,7 @@ function saveEditedSeries() {
       b.title = title;
       b.note = note;
       b.category = esSelectedCategory;
+      b.availStatus = esSelectedAvailStatus;
       b.start = start;
       b.end = end;
     }
@@ -3805,6 +4130,14 @@ function pickCategory(c) {
     el.className = 'cat-btn' + (x === c ? ' active-' + c : '');
   });
 }
+let selectedTbAvailStatus = 'busy';
+function pickTbAvailStatus(s) {
+  selectedTbAvailStatus = s;
+  ['busy', 'available', 'working'].forEach(x => {
+    const el = document.getElementById('tbAvail' + x[0].toUpperCase() + x.slice(1));
+    el.className = 'cat-btn' + (x === s ? ' active-' + x : '');
+  });
+}
 function pickTbRepeat(r) {
   selectedTbRepeat = r;
   ['none','daily','weekly','biweekly','monthly','twicemonthly'].forEach(x => {
@@ -3849,6 +4182,7 @@ function openTimeBlockModal(id, prefill) {
     document.getElementById('tbDowWrap').style.display = 'none';
     document.getElementById('tbRecurNote').style.display = block.recurringId ? 'block' : 'none';
     pickCategory(block.category);
+    pickTbAvailStatus(block.availStatus || 'busy');
     document.getElementById('tbStart').value = block.start;
     document.getElementById('tbEnd').value = block.end;
     populateTaskLinkSelect(block.taskId || '');
@@ -3864,6 +4198,7 @@ function openTimeBlockModal(id, prefill) {
     document.getElementById('tbRecurNote').style.display = 'none';
     pickTbRepeat('none');
     pickCategory('personal');
+    pickTbAvailStatus('busy');
     // default to the next free half-hour slot after 8am, so it's a sane starting point
     document.getElementById('tbStart').value = TB_START_MIN;
     document.getElementById('tbEnd').value = TB_START_MIN + TB_SLOT_MIN;
@@ -3905,6 +4240,13 @@ function saveTimeBlock() {
     document.getElementById('tbTaskDue').focus();
     return;
   }
+  if (taskId) {
+    const linkedTask = tasks.find(t => t.id === taskId);
+    if (linkedTask && linkedTask.required && linkedTask.due && date > linkedTask.due) {
+      alert(`This is a required task due ${fmtDate(linkedTask.due)} — the time block needs to be scheduled on or before that date.`);
+      return;
+    }
+  }
 
   let createdTask = false;
   if (alsoTask && !taskId) {
@@ -3923,6 +4265,7 @@ function saveTimeBlock() {
       block.title = title;
       block.note = note;
       block.category = selectedCategory;
+      block.availStatus = selectedTbAvailStatus;
       block.date = date;
       block.start = start;
       block.end = end;
@@ -3941,14 +4284,14 @@ function saveTimeBlock() {
       }
       recurringId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6) + 'r';
       recurringTimeBlockTemplates.push({
-        id: recurringId, title, note, category: selectedCategory,
+        id: recurringId, title, note, category: selectedCategory, availStatus: selectedTbAvailStatus,
         start, end, recurrence: selectedTbRepeat, anchorDate: date,
         ...(daysOfWeek ? { daysOfWeek } : {})
       });
       saveTbTemplates();
     }
     timeBlocks.push({
-      id: newBlockId, title, note, category: selectedCategory, date,
+      id: newBlockId, title, note, category: selectedCategory, availStatus: selectedTbAvailStatus, date,
       start, end, taskId,
       ...(recurringId ? { recurringId } : {})
     });
@@ -4047,7 +4390,7 @@ function renderTeamStatusList() {
 // The daily fail-safe still applies first each day — a trigger you haven't confirmed yet
 // always wins, so an old override can't silently coast forever without ever being reconfirmed.
 // Once today is confirmed (by any answer), "Available" and "Available – Working" both
-// override the time-block auto-busy rule for the rest of the day.
+// override whatever the active time block is configured to show, for the rest of the day.
 function computeEffectiveAvailability() {
   const now = new Date();
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
@@ -4060,8 +4403,11 @@ function computeEffectiveAvailability() {
   if (availabilityState.manualStatus === 'working') return 'working';
   if (availabilityState.manualStatus === 'available') return 'available';
 
-  const inBlock = timeBlocks.some(b => b.date === today && b.start <= nowMinutes && nowMinutes < b.end);
-  return inBlock ? 'busy' : 'unavailable';
+  // Each block can say what it should show as while active — defaults to Busy for
+  // anything that's never had this set (older blocks, or ones left at the default).
+  const activeBlock = timeBlocks.find(b => b.date === today && b.start <= nowMinutes && nowMinutes < b.end);
+  if (activeBlock) return activeBlock.availStatus || 'busy';
+  return 'unavailable';
 }
 async function publishAvailability() {
   try {
@@ -4346,6 +4692,10 @@ function copyTeamLink() {
   setTimeout(() => input.select(), 50);
 }
 function copyMyViewLink() {
+  if (!currentUid) {
+    alert('Still finishing sign-in — give it a second and try again.');
+    return;
+  }
   const url = location.origin + location.pathname + '?view=1&who=' + currentUid;
   document.getElementById('linkModalTitle').textContent = 'Your View-Only Link';
   document.getElementById('linkModalLabel').textContent = 'Share this with anyone who just needs to see your board';
@@ -4585,6 +4935,13 @@ function applyKioskRestrictions() {
     if (el) el.style.display = 'none';
   });
 }
+// Most Tier 2 enforcement happens inline, right where it matters (openModal, saveTask) via
+// direct myRole checks — this just adds the one visible signal that something's different
+// about this account, so the locked-down New Task flow doesn't look like a bug.
+function applyTier2Restrictions() {
+  const badge = document.getElementById('tier2Badge');
+  if (badge) badge.style.display = (myRole === 'tier2') ? 'block' : 'none';
+}
 
 let sessionStarted = false; // guards against setting up duplicate timers if auth state fires more than once
 
@@ -4617,11 +4974,21 @@ if (isSubmitMode) {
       if (teamBtn) teamBtn.style.display = 'inline-block';
       const codeBtn = document.getElementById('submitCodeBtn');
       if (codeBtn) codeBtn.style.display = 'inline-block';
+      const assignBtn = document.getElementById('assignTaskBtn');
+      if (assignBtn) assignBtn.style.display = 'inline-block';
     }
+    try {
+      const roleData = await dbGet(`directory/${currentUid}/role`, true);
+      myRole = roleData || 'standard';
+    } catch (e) { myRole = 'standard'; }
+    applyTier2Restrictions();
     await migrateLegacyDataIfNeeded();
     applyKioskRestrictions();
     attachAvailabilityListener();
     attachTeamStatusListener();
+    attachAssignmentListener();
+    attachDateChangeResponseListener();
+    if (currentUid === OWNER_UID) attachDateChangeRequestListener();
     loadState();
     loadPending();
     loadDailyQuote();
