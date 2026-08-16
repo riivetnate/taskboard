@@ -1280,6 +1280,7 @@ html, body {
   accent-color: var(--score);
   cursor: pointer;
 }
+.checkbox-field input[type="checkbox"]:disabled { opacity: 0.4; cursor: not-allowed; }
 .checkbox-field label {
   margin: 0;
   text-transform: none;
@@ -1818,6 +1819,39 @@ html, body {
       <button class="btn-save" style="background:var(--good); color:#0d2a10; width:100%;" onclick="answerAvailabilityPrompt('available')">🟢 I'm Available</button>
       <button class="btn-save" style="background:var(--working); color:#2b2200; width:100%;" onclick="answerAvailabilityPrompt('working')">🟡 Available — Working</button>
       <button class="btn-cancel" style="border-color:var(--high); color:var(--high); width:100%;" onclick="answerAvailabilityPrompt('unavailable')">🔴 Still Unavailable</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="mandatoryTbModalOverlay">
+  <div class="modal">
+    <h2>Schedule This Task</h2>
+    <div style="background:var(--high-dim); border:1px solid var(--high); color:var(--high); padding:10px 14px; border-radius:6px; margin-bottom:16px; font-size:12.5px; font-weight:600;" id="mandatoryTbTaskCount"></div>
+    <div style="font-weight:600; font-size:16px; margin-bottom:16px;" id="mandatoryTbTaskTitle"></div>
+    <div class="field">
+      <label>Date</label>
+      <input type="date" id="mandatoryTbDate">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Start Time</label>
+        <select id="mandatoryTbStart"></select>
+      </div>
+      <div class="field">
+        <label>End Time</label>
+        <select id="mandatoryTbEnd"></select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Category</label>
+      <div class="category-picks">
+        <button class="cat-btn" id="mandatoryTbCatImca" onclick="pickMandatoryTbCategory('imca')">IMCA</button>
+        <button class="cat-btn" id="mandatoryTbCatRiivet" onclick="pickMandatoryTbCategory('riivet')">Riivet</button>
+        <button class="cat-btn" id="mandatoryTbCatPersonal" onclick="pickMandatoryTbCategory('personal')">Personal</button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-save" style="flex:1;" onclick="saveMandatoryTimeBlock()">Save &amp; Continue</button>
     </div>
   </div>
 </div>
@@ -3207,6 +3241,7 @@ function openModal(id) {
     document.getElementById('inpTitle').disabled = isRequired;
     document.getElementById('inpSub').disabled = isRequired;
     document.getElementById('inpDue').disabled = isRequired || !task.due;
+    document.getElementById('inpNoDue').disabled = isRequired;
     document.querySelectorAll('#modalOverlay .priority-picks .pp-btn').forEach(b => b.disabled = isRequired);
     document.querySelectorAll('#modalOverlay .category-picks .cat-btn').forEach(b => b.disabled = isRequired);
     document.getElementById('modalDeleteWrap').style.display = isRequired ? 'none' : 'flex';
@@ -3218,6 +3253,7 @@ function openModal(id) {
     document.getElementById('inpSub').value = '';
     document.getElementById('inpDue').value = todayStr();
     document.getElementById('inpNoDue').checked = false;
+    document.getElementById('inpNoDue').disabled = false;
     document.getElementById('inpDue').disabled = false;
     pickPriority('medium');
     pickTaskCategory('personal');
@@ -3557,8 +3593,86 @@ function attachAssignmentListener() {
       saveTasks();
       render();
       firebase.database().ref(`assignments/${currentUid}/${assignmentId}`).remove();
+      checkMandatoryTimeBlockQueue();
     });
   });
+}
+/* ---------- MANDATORY TIME BLOCK QUEUE (Baseline accounts, required tasks) ---------- */
+// A required task without a linked time block yet is "pending" — this has no separate
+// stored flag, it's just computed on the fly: required, not completed, and nothing in
+// timeBlocks points at it via taskId. That keeps it always accurate, even across sessions.
+let mandatoryQueueActive = false;
+let mandatoryQueueTaskId = null;
+let selectedMandatoryTbCategory = 'imca';
+
+function getTasksNeedingTimeBlock() {
+  if (myRole !== 'baseline') return [];
+  return tasks.filter(t => t.required && !t.completed && !timeBlocks.some(b => b.taskId === t.id));
+}
+function checkMandatoryTimeBlockQueue() {
+  if (mandatoryQueueActive) return; // one at a time — never stack these
+  if (getTasksNeedingTimeBlock().length === 0) return;
+  showNextMandatoryTimeBlock();
+}
+function pickMandatoryTbCategory(c) {
+  selectedMandatoryTbCategory = c;
+  ['imca', 'riivet', 'personal'].forEach(x => {
+    const el = document.getElementById('mandatoryTbCat' + x[0].toUpperCase() + x.slice(1));
+    el.className = 'cat-btn' + (x === c ? ' active-' + c : '');
+  });
+}
+function populateMandatoryTbTimeSelects() {
+  const s = document.getElementById('mandatoryTbStart');
+  const e = document.getElementById('mandatoryTbEnd');
+  if (s.options.length) return; // already populated on a prior open this session
+  for (let m = TB_START_MIN; m < TB_END_MIN; m += TB_SLOT_MIN) {
+    s.innerHTML += `<option value="${m}">${fmtMinutes(m)}</option>`;
+  }
+  for (let m = TB_START_MIN + TB_SLOT_MIN; m <= TB_END_MIN; m += TB_SLOT_MIN) {
+    e.innerHTML += `<option value="${m}">${fmtMinutes(m)}</option>`;
+  }
+}
+function showNextMandatoryTimeBlock() {
+  const pending = getTasksNeedingTimeBlock();
+  if (pending.length === 0) {
+    mandatoryQueueActive = false;
+    document.getElementById('mandatoryTbModalOverlay').classList.add('hidden');
+    return;
+  }
+  mandatoryQueueActive = true;
+  const task = pending[0];
+  mandatoryQueueTaskId = task.id;
+  document.getElementById('mandatoryTbTaskCount').textContent = pending.length === 1
+    ? '🔒 1 assigned task needs a time block before you can continue'
+    : `🔒 ${pending.length} assigned tasks need time blocks — one at a time, before you can continue`;
+  document.getElementById('mandatoryTbTaskTitle').textContent = task.title;
+  populateMandatoryTbTimeSelects();
+  document.getElementById('mandatoryTbDate').value = todayStr();
+  document.getElementById('mandatoryTbStart').value = String(TB_START_MIN);
+  document.getElementById('mandatoryTbEnd').value = String(TB_START_MIN + TB_SLOT_MIN);
+  pickMandatoryTbCategory(task.category || 'imca');
+  document.getElementById('mandatoryTbModalOverlay').classList.remove('hidden');
+}
+function saveMandatoryTimeBlock() {
+  const task = tasks.find(t => t.id === mandatoryQueueTaskId);
+  if (!task) { showNextMandatoryTimeBlock(); return; }
+  const date = document.getElementById('mandatoryTbDate').value;
+  const start = parseInt(document.getElementById('mandatoryTbStart').value, 10);
+  const end = parseInt(document.getElementById('mandatoryTbEnd').value, 10);
+  if (!date) { document.getElementById('mandatoryTbDate').focus(); return; }
+  if (end <= start) { alert('End time needs to be after the start time.'); return; }
+  if (task.due && date > task.due) {
+    alert(`This is due ${fmtDate(task.due)} — schedule it on or before that date.`);
+    return;
+  }
+  timeBlocks.push({
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    title: task.title, note: task.sub || '', category: selectedMandatoryTbCategory, availStatus: 'busy',
+    date, start, end, taskId: task.id
+  });
+  saveTimeBlocks();
+  render();
+  showNextMandatoryTimeBlock(); // moves to the next one pending, or closes if that was the last
 }
 function pickInlineTbCategory(c) {
   selectedInlineTbCategory = c;
@@ -5047,7 +5161,7 @@ function resetSubmitForm() {
 }
 
 function anyModalOpen() {
-  const overlayIds = ['modalOverlay', 'tbRecurringModalOverlay', 'timeblockModalOverlay', 'recurringModalOverlay', 'labelModalOverlay', 'linkModalOverlay', 'projectModalOverlay', 'nameModalOverlay', 'manageTeamModalOverlay', 'submitCodeModalOverlay', 'exportModalOverlay', 'confirmCodeModalOverlay', 'availSettingsModalOverlay', 'availPromptOverlay', 'editSeriesModalOverlay'];
+  const overlayIds = ['modalOverlay', 'tbRecurringModalOverlay', 'timeblockModalOverlay', 'recurringModalOverlay', 'labelModalOverlay', 'linkModalOverlay', 'projectModalOverlay', 'nameModalOverlay', 'manageTeamModalOverlay', 'submitCodeModalOverlay', 'exportModalOverlay', 'confirmCodeModalOverlay', 'availSettingsModalOverlay', 'availPromptOverlay', 'editSeriesModalOverlay', 'mandatoryTbModalOverlay', 'assignTaskModalOverlay', 'requestDateChangeModalOverlay', 'teamRequestModalOverlay'];
   return overlayIds.some(id => {
     const el = document.getElementById(id);
     return el && !el.classList.contains('hidden');
@@ -5187,6 +5301,7 @@ if (isSubmitMode) {
     // real race: a listener could act on stale/empty data moments before loadState's own
     // fetch overwrote it, or push into an array that then got discarded by that overwrite.
     await loadState();
+    checkMandatoryTimeBlockQueue();
     attachAvailabilityListener();
     attachTeamStatusListener();
     attachAssignmentListener();
