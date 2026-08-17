@@ -695,6 +695,55 @@ html, body {
   font-size: 14px;
   word-break: break-word;
 }
+.checklist-progress-badge {
+  display: inline-block;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 10px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.task-checklist { margin: 10px 0; }
+.checklist-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+  cursor: pointer;
+}
+.checklist-row:first-child { border-top: none; }
+.checklist-row input[type="checkbox"] {
+  width: 18px; height: 18px; min-width: 18px;
+  accent-color: var(--score);
+  cursor: pointer;
+}
+.checklist-row span { font-size: 13.5px; color: var(--chalk); }
+.checklist-row span.checklist-done { color: var(--muted); text-decoration: line-through; }
+.modal-checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 0;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+.modal-checklist-item:first-child { border-top: none; }
+.modal-checklist-item .mci-label { flex: 1; color: var(--chalk); }
+.modal-checklist-item .mci-label.checked { color: var(--muted); text-decoration: line-through; }
+.modal-checklist-item .mci-remove {
+  background: none;
+  border: none;
+  color: var(--high);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
 .upcoming-row-head .u-due {
   font-size: 11px;
   color: var(--muted);
@@ -1711,6 +1760,14 @@ html, body {
     <div class="schedule-btn-wrap" id="scheduleBtnWrap" style="display:none;">
       <button class="schedule-btn" onclick="scheduleTaskTimeBlock()">🕒 Add a Time Block for This Task</button>
     </div>
+    <div class="field">
+      <label>Checklist (optional) &nbsp;<span style="color:var(--muted); font-weight:400; text-transform:none; letter-spacing:0;">— e.g. names, steps</span></label>
+      <div id="checklistItemsArea"></div>
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <input type="text" id="checklistNewItem" placeholder="e.g. Sarah" maxlength="60" style="flex:1;" onkeydown="if(event.key==='Enter'){event.preventDefault(); addChecklistItem();}">
+        <button type="button" class="copy-link-btn" onclick="addChecklistItem()">+ Add</button>
+      </div>
+    </div>
     <div class="field checkbox-field" id="reactivateWrap" style="display:none;">
       <input type="checkbox" id="inpReactivate">
       <label for="inpReactivate">Re-activate this task</label>
@@ -2270,6 +2327,37 @@ let recurringTimeBlockTemplates = [];
 let stats = { totalPoints: 0, dailyScore: 0, lastScoreDate: null, streak: 0, lastActiveDate: null };
 let selectedPriority = 'medium';
 let selectedTaskCategory = 'personal';
+// Working copy while the task modal is open — only persisted into the actual task on Save.
+// This section stays editable even on a locked/required task, since the checklist is the
+// assignee's own way of breaking work down, not one of the admin-controlled facts.
+let currentChecklist = [];
+function renderChecklistItemsArea() {
+  const area = document.getElementById('checklistItemsArea');
+  if (!area) return;
+  if (currentChecklist.length === 0) {
+    area.innerHTML = `<div style="color:var(--muted); font-size:12.5px;">No items yet.</div>`;
+    return;
+  }
+  area.innerHTML = currentChecklist.map(item => `
+    <div class="modal-checklist-item">
+      <span class="mci-label${item.checked ? ' checked' : ''}">${item.checked ? '☑' : '☐'} ${escapeHtml(item.label)}</span>
+      <button type="button" class="mci-remove" onclick="removeChecklistItem('${item.id}')">×</button>
+    </div>
+  `).join('');
+}
+function addChecklistItem() {
+  const input = document.getElementById('checklistNewItem');
+  const label = input.value.trim();
+  if (!label) return;
+  currentChecklist.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), label, checked: false });
+  input.value = '';
+  renderChecklistItemsArea();
+  input.focus();
+}
+function removeChecklistItem(itemId) {
+  currentChecklist = currentChecklist.filter(i => i.id !== itemId);
+  renderChecklistItemsArea();
+}
 let selectedRepeat = 'none';
 let selectedTbRepeat = 'none';
 let labelPriority = 'medium';
@@ -2977,7 +3065,7 @@ function renderReadOnlyTasks(roTasks) {
         suffix = ' – IMPORTANT';
       }
       return `<div class="ro-task-row ${cls}">
-        <span>${catTag(t)}${escapeHtml(t.title)}${suffix}</span>
+        <span>${catTag(t)}${escapeHtml(t.title)}${suffix}${(t.checklistTotal) ? ` <span style="color:var(--muted); font-size:11px; font-weight:600;">(${t.checklistDone}/${t.checklistTotal})</span>` : ''}</span>
         ${t.due ? `<span class="ro-due">${fmtDate(t.due)}</span>` : `<span class="ro-due">Someday</span>`}
       </div>`;
     }).join('');
@@ -3114,7 +3202,10 @@ function generateRecurringInstances() {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       title: template.title, sub: template.sub, priority: template.priority,
       category: template.category || 'imca', due: todayKey,
-      completed: false, completedAt: null, recurringId: template.id
+      completed: false, completedAt: null, recurringId: template.id,
+      ...(template.checklist && template.checklist.length > 0
+        ? { checklist: template.checklist.map(i => ({ ...i, checked: false })) }
+        : {})
     });
     changed = true;
   });
@@ -3194,7 +3285,10 @@ async function syncPublicTasks() {
     const pub = tasks.map(t => ({
       title: t.title, due: t.due || null, priority: t.priority,
       completed: !!t.completed, completedAt: t.completedAt || null,
-      category: t.category || 'imca'
+      category: t.category || 'imca',
+      ...(t.checklist && t.checklist.length > 0
+        ? { checklistDone: t.checklist.filter(i => i.checked).length, checklistTotal: t.checklist.length }
+        : {})
     }));
     await dbSet(`publicTasks/${currentUid}`, pub, true);
   } catch (e) { console.error('sync public tasks failed', e); }
@@ -3246,6 +3340,9 @@ function openModal(id) {
     document.querySelectorAll('#modalOverlay .category-picks .cat-btn').forEach(b => b.disabled = isRequired);
     document.getElementById('modalDeleteWrap').style.display = isRequired ? 'none' : 'flex';
     document.getElementById('requestDateChangeWrap').style.display = isRequired ? 'flex' : 'none';
+    // Checklist stays editable regardless of required-lock — it's the assignee's own workflow.
+    currentChecklist = (task.checklist || []).map(i => ({ ...i }));
+    renderChecklistItemsArea();
   } else {
     editingTaskId = null;
     document.getElementById('taskModalTitle').textContent = 'New Task';
@@ -3285,6 +3382,8 @@ function openModal(id) {
       document.getElementById('inlineTbStart').value = '';
       document.getElementById('inlineTbEnd').value = '';
     }
+    currentChecklist = [];
+    renderChecklistItemsArea();
   }
   document.getElementById('modalOverlay').classList.remove('hidden');
   setTimeout(() => document.getElementById('inpTitle').focus(), 50);
@@ -3745,6 +3844,7 @@ function saveTask() {
       task.priority = selectedPriority;
       task.category = selectedTaskCategory;
       task.due = due;
+      task.checklist = currentChecklist.length > 0 ? currentChecklist : undefined;
       saveTasks();
     }
     closeModal();
@@ -3757,7 +3857,8 @@ function saveTask() {
     recurringId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     recurringTemplates.push({
       id: recurringId, title, sub, priority: selectedPriority, category: selectedTaskCategory,
-      recurrence: selectedRepeat, anchorDate: due || todayStr()
+      recurrence: selectedRepeat, anchorDate: due || todayStr(),
+      ...(currentChecklist.length > 0 ? { checklist: currentChecklist } : {})
     });
     saveTemplates();
   }
@@ -3767,6 +3868,7 @@ function saveTask() {
     id: newTaskId,
     title, sub, priority: selectedPriority, category: selectedTaskCategory, due,
     completed: false, completedAt: null,
+    ...(currentChecklist.length > 0 ? { checklist: currentChecklist } : {}),
     ...(recurringId ? { recurringId } : {})
   });
   saveTasks();
@@ -3810,7 +3912,7 @@ function daysLate(dueStr, todayKey) {
   return Math.floor((now - due) / 86400000);
 }
 
-function toggleComplete(id) {
+function toggleComplete(id, fromChecklist) {
   const task = tasks.find(t => t.id === id);
   if (!task) return;
 
@@ -3850,9 +3952,34 @@ function toggleComplete(id) {
     delete task.pointsAwarded;
     if (lastCompletedId === id) hideToast();
   }
+  // Toggling the main checkbox directly syncs every checklist item to match — completing
+  // checks them all off, un-completing clears them. A toggle that originated FROM the
+  // checklist itself skips this, since the whole point there is preserving exactly which
+  // items the person checked one at a time.
+  if (!fromChecklist && task.checklist && task.checklist.length > 0) {
+    task.checklist.forEach(item => { item.checked = task.completed; });
+  }
   saveTasks();
   saveStats();
   render();
+}
+// Checking/unchecking one item on the board — drives the parent task's completion to match
+// whether every item is now checked, reusing toggleComplete so points/streak stay correct.
+function toggleChecklistItem(taskId, itemId) {
+  const task = tasks.find(t => t.id === taskId);
+  if (!task || !task.checklist) return;
+  const item = task.checklist.find(i => i.id === itemId);
+  if (!item) return;
+  item.checked = !item.checked;
+  const allChecked = task.checklist.every(i => i.checked);
+  if (allChecked && !task.completed) {
+    toggleComplete(taskId, true);
+  } else if (!allChecked && task.completed) {
+    toggleComplete(taskId, true);
+  } else {
+    saveTasks();
+    render();
+  }
 }
 
 function pulseStats() {
@@ -3899,6 +4026,22 @@ function render() {
     const b = timeBlocks.find(b => b.date === today && b.taskId === t.id);
     return b ? `<div class="tb-task-link">🕒 ${timeRangeLabel(b.start, b.end)}</div>` : '';
   }
+  function checklistBadge(t) {
+    if (!t.checklist || t.checklist.length === 0) return '';
+    const checkedCount = t.checklist.filter(i => i.checked).length;
+    return `<span class="checklist-progress-badge">${checkedCount}/${t.checklist.length}</span>`;
+  }
+  function checklistBlock(t) {
+    if (!t.checklist || t.checklist.length === 0) return '';
+    return `<div class="task-checklist">
+      ${t.checklist.map(item => `
+        <label class="checklist-row" onclick="event.stopPropagation();">
+          <input type="checkbox" ${item.checked ? 'checked' : ''} onchange="toggleChecklistItem('${t.id}','${item.id}')">
+          <span class="${item.checked ? 'checklist-done' : ''}">${escapeHtml(item.label)}</span>
+        </label>
+      `).join('')}
+    </div>`;
+  }
 
   function taskRow(t) {
     if (t.completed) {
@@ -3912,7 +4055,7 @@ function render() {
     return `<div class="upcoming-row ${open ? 'open' : ''}">
       <div class="upcoming-row-head" onclick="toggleTaskRow('${t.id}')">
         <button class="check pri-${t.priority}" onclick="event.stopPropagation(); toggleComplete('${t.id}')"></button>
-        <span class="u-title">${escapeHtml(t.title)}${t.recurringId ? ' 🔁' : ''}</span>
+        <span class="u-title">${escapeHtml(t.title)}${t.recurringId ? ' 🔁' : ''}${checklistBadge(t)}</span>
         <span class="u-due${isOverdue ? ' overdue-text' : ''}">${isOverdue ? 'OVERDUE' : (t.due ? fmtDate(t.due) : 'Someday')}</span>
         <span class="chevron">▼</span>
       </div>
@@ -3920,6 +4063,7 @@ function render() {
         ${t.sub ? `<div class="card-sub">${escapeHtml(t.sub)}</div>` : `<div class="card-sub" style="opacity:0.6;">No additional details</div>`}
         ${t.submittedBy ? `<div class="task-from">From ${escapeHtml(t.submittedBy)}</div>` : ''}
         ${linkedBlockTag(t)}
+        ${checklistBlock(t)}
         <div class="detail-meta">
           <span class="badge pri-${t.priority}">${t.priority[0].toUpperCase() + t.priority.slice(1)}</span>
           ${t.due ? `<span class="badge ${isOverdue ? 'overdue-badge' : isToday ? 'today-badge' : 'due'}">${isOverdue ? 'OVERDUE · ' : isToday ? 'DUE TODAY · ' : 'Due '}${fmtDate(t.due)}</span>` : ''}
