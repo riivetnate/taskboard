@@ -132,8 +132,6 @@ html, body {
 .ro-task-row.ro-important span:first-child { color: #e08a34; font-weight: 600; }
 .ro-task-row.ro-pastdue { background: rgba(229, 72, 77, 0.16); border: 1px solid rgba(229, 72, 77, 0.45); }
 .ro-task-row.ro-pastdue span:first-child { color: var(--high); font-weight: 600; }
-.ro-task-row.ro-done { background: rgba(67, 196, 99, 0.14); border: 1px solid rgba(67, 196, 99, 0.4); }
-.ro-task-row.ro-done span:first-child { color: var(--good); text-decoration: line-through; }
 .ro-task-row.ro-completed-row { background: var(--surface-2); border: 1px solid var(--line); opacity: 0.65; }
 .ro-task-row.ro-completed-row span:first-child { color: var(--muted); text-decoration: line-through; }
 .ro-cat-block {
@@ -452,61 +450,6 @@ html, body {
   font-weight: 500;
 }
 
-.stats-row {
-  display: flex;
-  gap: 28px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.stat {
-  text-align: center;
-  min-width: 74px;
-}
-.stat .num {
-  font-family: 'Oswald', sans-serif;
-  font-weight: 700;
-  font-size: 34px;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-  transition: transform 0.15s ease;
-}
-.stat .lbl {
-  font-size: 10px;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-top: 4px;
-}
-.stat.score .num { color: var(--score); }
-.stat.streak .num { color: var(--high); }
-.stat.level .num { color: var(--low); }
-
-.pulse { animation: pulse-up 0.4s ease; }
-@keyframes pulse-up {
-  0% { transform: scale(1); }
-  40% { transform: scale(1.35); }
-  100% { transform: scale(1); }
-}
-
-.level-bar-wrap {
-  min-width: 140px;
-}
-.level-bar-track {
-  width: 100%;
-  height: 8px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  overflow: hidden;
-  margin-top: 6px;
-}
-.level-bar-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--low), #4dd8c9);
-  transition: width 0.4s ease;
-}
-
 /* ---------- ADD TASK BAR ---------- */
 .add-bar {
   display: flex;
@@ -644,12 +587,6 @@ html, body {
   margin-top: 3px;
   word-break: break-word;
 }
-.card-meta {
-  display: flex;
-  gap: 8px;
-  margin-top: 8px;
-  flex-wrap: wrap;
-}
 .badge {
   font-size: 10.5px;
   padding: 3px 8px;
@@ -663,15 +600,6 @@ html, body {
 .badge.pri-high { background: var(--high-dim); color: var(--high); }
 .badge.pri-medium { background: var(--med-dim); color: var(--med); }
 .badge.pri-low { background: var(--low-dim); color: var(--low); }
-.del-btn {
-  background: none;
-  border: none;
-  color: var(--muted);
-  font-size: 18px;
-  cursor: pointer;
-  padding: 0 2px;
-  line-height: 1;
-}
 
 /* ---------- CONDENSED UPCOMING ROW ---------- */
 .upcoming-row {
@@ -786,43 +714,6 @@ html, body {
   cursor: pointer;
 }
 
-
-/* ---------- COMPLETED SECTION ---------- */
-.completed-section {
-  margin-top: 28px;
-}
-.completed-head {
-  font-family: 'Oswald', sans-serif;
-  font-size: 14px;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  color: var(--good);
-  margin-bottom: 10px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.completed-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-.done-card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  padding: 8px 14px;
-  font-size: 13px;
-  color: var(--muted);
-  text-decoration: line-through;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-}
-.done-card:active { transform: scale(0.96); }
-.done-card .pts { color: var(--good); text-decoration: none; font-weight: 600; }
-.done-card .undo-hint { text-decoration: none; color: var(--muted); font-size: 11px; opacity: 0.7; }
 
 /* ---------- MODAL ---------- */
 .overlay {
@@ -1063,16 +954,6 @@ html, body {
   color-scheme: dark;
 }
 .avail-day-time:disabled { opacity: 0.35; }
-
-.task-repeat-badge {
-  font-size: 10.5px;
-  color: var(--score);
-  font-weight: 600;
-  margin-top: 4px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
 
 .recurring-item {
   display: flex;
@@ -1386,10 +1267,6 @@ html, body {
   color: var(--score);
   margin: -6px 0 14px;
 }
-.tb-repeat-badge {
-  font-size: 10px;
-  vertical-align: middle;
-}
 
 /* ---------- TEAM SUBMIT PAGE ---------- */
 .submit-page {
@@ -1485,25 +1362,6 @@ html, body {
       <div class="quote-text" id="quoteText">Loading today's quote…</div>
       <div class="quote-author" id="quoteAuthor"></div>
       <div class="quote-attribution" id="quoteAttribution" style="display:none;">Quotes via <a href="https://zenquotes.io" target="_blank" rel="noopener">ZenQuotes.io</a></div>
-    </div>
-
-    <div class="stats-row" style="display:none;">
-      <div class="stat score">
-        <div class="num" id="dailyScoreNum">0</div>
-        <div class="lbl">Today's Pts</div>
-      </div>
-      <div class="stat streak">
-        <div class="num" id="streakNum">0</div>
-        <div class="lbl">Day Streak</div>
-      </div>
-      <div class="stat level">
-        <div class="num" id="levelNum">1</div>
-        <div class="lbl">Level</div>
-      </div>
-      <div class="level-bar-wrap">
-        <div class="lbl" id="levelProgressLbl" style="text-align:left; color: var(--muted);">0 / 200</div>
-        <div class="level-bar-track"><div class="level-bar-fill" id="levelBarFill" style="width:0%"></div></div>
-      </div>
     </div>
   </div>
 
@@ -2057,7 +1915,7 @@ html, body {
 <div class="overlay hidden" id="exportModalOverlay">
   <div class="modal">
     <h2>Export Your Data</h2>
-    <div style="color:var(--muted); font-size:13px; margin-bottom:16px;">Downloads your own tasks, time blocks, and stats — nobody else's.</div>
+    <div style="color:var(--muted); font-size:13px; margin-bottom:16px;">Downloads your own tasks and time blocks — nobody else's.</div>
     <button class="btn-save" style="width:100%; margin-bottom:10px;" onclick="exportDataJSON()">Full Backup (JSON)</button>
     <button class="btn-save" style="width:100%; margin-bottom:10px;" onclick="exportTasksCSV()">Tasks Only (CSV)</button>
     <div class="modal-actions">
@@ -2265,8 +2123,6 @@ html, body {
 </div>
 
 <script>
-const POINTS = { high: 30, medium: 20, low: 10 };
-const LEVEL_STEP = 200;
 const DB_URL = 'https://task-app-1a091-default-rtdb.firebaseio.com';
 const OWNER_UID = 'Mm1J9bx1HvfJ0b70PDxNxq1PmmK2';
 
@@ -2286,7 +2142,7 @@ async function authToken() {
   return await fbAuth.currentUser.getIdToken(); // auto-refreshes if expired
 }
 
-// Personal data (tasks, timeblocks, stats, etc.) lives under users/{uid}/...
+// Personal data (tasks, timeblocks, etc.) lives under users/{uid}/...
 // Shared data (directory, sharedProjects) lives at the root, readable/writable by any signed-in teammate.
 async function dbGet(path, shared) {
   const fullPath = shared ? path : `users/${currentUid}/${path}`;
@@ -2324,7 +2180,6 @@ let pendingQueue = [];
 let recurringTemplates = [];
 let timeBlocks = [];
 let recurringTimeBlockTemplates = [];
-let stats = { totalPoints: 0, dailyScore: 0, lastScoreDate: null, streak: 0, lastActiveDate: null };
 let selectedPriority = 'medium';
 let selectedTaskCategory = 'personal';
 // Working copy while the task modal is open — only persisted into the actual task on Save.
@@ -2470,13 +2325,8 @@ async function loadDailyQuote() {
   }
 }
 
-function showUndoToast(title, pts, late) {
-  let msg = `"${title}" completed`;
-  if (typeof pts === 'number') {
-    msg += ` +${pts} pts`;
-    if (late > 0) msg += ` (-5/day × ${late} late)`;
-  }
-  document.getElementById('toastMsg').textContent = msg;
+function showUndoToast(title) {
+  document.getElementById('toastMsg').textContent = `"${title}" completed`;
   const toast = document.getElementById('undoToast');
   toast.classList.remove('hidden');
   clearTimeout(toastTimer);
@@ -2525,10 +2375,6 @@ async function loadState() {
     tasks = t || [];
   } catch (e) { tasks = []; }
   try {
-    const s = await dbGet('stats');
-    stats = s || stats;
-  } catch (e) { /* defaults stay */ }
-  try {
     const r = await dbGet('templates');
     recurringTemplates = r ? Object.values(r) : [];
   } catch (e) { recurringTemplates = []; }
@@ -2544,15 +2390,9 @@ async function loadState() {
   // not a one-time fetch here — that's what previously let a stale tab/tablet silently overwrite
   // a status change made somewhere else.
 
-  // roll over daily score if the date changed
-  if (stats.lastScoreDate !== todayStr()) {
-    stats.dailyScore = 0;
-    stats.lastScoreDate = todayStr();
-  }
   generateRecurringInstances();
   generateRecurringTimeBlockInstances();
   render();
-  saveStats(); // persist rollover
   syncBusyTimes();
   syncPublicTasks();
   publishAvailability();
@@ -2654,12 +2494,10 @@ async function migrateLegacyDataIfNeeded() {
   if (already) return;
   try {
     const legacyTasks = await dbGet('tasks', true);
-    const legacyStats = await dbGet('stats', true);
     const legacyTemplates = await dbGet('templates', true);
     const legacyTimeblocks = await dbGet('timeblocks', true);
     const legacyTbTemplates = await dbGet('tbTemplates', true);
     if (legacyTasks) await dbSet('tasks', legacyTasks);
-    if (legacyStats) await dbSet('stats', legacyStats);
     if (legacyTemplates) await dbSet('templates', legacyTemplates);
     if (legacyTimeblocks) await dbSet('timeblocks', legacyTimeblocks);
     if (legacyTbTemplates) await dbSet('tbTemplates', legacyTbTemplates);
@@ -2721,7 +2559,7 @@ function downloadFile(filename, content, mime) {
 function exportDataJSON() {
   const bundle = {
     exportedAt: new Date().toISOString(),
-    tasks, timeBlocks, stats,
+    tasks, timeBlocks,
     recurringTemplates, recurringTimeBlockTemplates
   };
   downloadFile(`the-board-backup-${todayStr()}.json`, JSON.stringify(bundle, null, 2), 'application/json');
@@ -2889,11 +2727,6 @@ function completeSubjob(projId, subId) {
   job.completedBy = currentUserName;
   saveTeamProjects();
   renderTeamProjects();
-  // same point scale as a Medium personal task, credited to whoever finished it
-  stats.totalPoints += POINTS.medium;
-  stats.dailyScore += POINTS.medium;
-  saveStats();
-  render();
 }
 function renderTeamProjects() {
   const section = document.getElementById('teamSection');
@@ -3245,10 +3078,6 @@ async function saveTasks() {
   try { await dbSet('tasks', tasks); }
   catch (e) { console.error('save tasks failed', e); }
   syncPublicTasks();
-}
-async function saveStats() {
-  try { await dbSet('stats', stats); }
-  catch (e) { console.error('save stats failed', e); }
 }
 async function saveTemplates() {
   try { await dbSet('templates', recurringTemplates); }
@@ -3836,8 +3665,8 @@ function saveTask() {
     const task = tasks.find(x => x.id === editingTaskId);
     if (task) {
       const reactivating = task.completed && document.getElementById('inpReactivate').checked;
-      // revert completion (and its points) using the priority it was completed under,
-      // before any priority edit below could change what gets credited/reverted
+      // revert completion first, before any edits below (priority, etc.) change the task,
+      // so toggleComplete is reverting the task exactly as it was when it got completed
       if (reactivating) toggleComplete(task.id);
       task.title = title;
       task.sub = sub;
@@ -3916,40 +3745,13 @@ function toggleComplete(id, fromChecklist) {
   const task = tasks.find(t => t.id === id);
   if (!task) return;
 
-  if (stats.lastScoreDate !== todayStr()) {
-    stats.dailyScore = 0;
-    stats.lastScoreDate = todayStr();
-  }
-
   if (!task.completed) {
-    const basePts = POINTS[task.priority] || 10;
-    const late = daysLate(task.due, todayStr());
-    const pts = Math.max(0, basePts - (late * 5));
-
     task.completed = true;
     task.completedAt = todayStr();
-    task.pointsAwarded = pts; // snapshot so undo/reactivate always reverses the exact amount, even if priority or due date changes later
-    stats.totalPoints += pts;
-    stats.dailyScore += pts;
-
-    // streak logic
-    if (stats.lastActiveDate !== todayStr()) {
-      if (stats.lastActiveDate === yesterdayStr()) {
-        stats.streak += 1;
-      } else {
-        stats.streak = 1;
-      }
-      stats.lastActiveDate = todayStr();
-    }
-    pulseStats();
     lastCompletedId = id;
-    showUndoToast(task.title, pts, late);
+    showUndoToast(task.title);
   } else {
     task.completed = false;
-    const pts = (typeof task.pointsAwarded === 'number') ? task.pointsAwarded : (POINTS[task.priority] || 10);
-    stats.totalPoints = Math.max(0, stats.totalPoints - pts);
-    stats.dailyScore = Math.max(0, stats.dailyScore - pts);
-    delete task.pointsAwarded;
     if (lastCompletedId === id) hideToast();
   }
   // Toggling the main checkbox directly syncs every checklist item to match — completing
@@ -3960,11 +3762,10 @@ function toggleComplete(id, fromChecklist) {
     task.checklist.forEach(item => { item.checked = task.completed; });
   }
   saveTasks();
-  saveStats();
   render();
 }
 // Checking/unchecking one item on the board — drives the parent task's completion to match
-// whether every item is now checked, reusing toggleComplete so points/streak stay correct.
+// whether every item is now checked, reusing toggleComplete so the two states never disagree.
 function toggleChecklistItem(taskId, itemId) {
   const task = tasks.find(t => t.id === taskId);
   if (!task || !task.checklist) return;
@@ -3982,25 +3783,8 @@ function toggleChecklistItem(taskId, itemId) {
   }
 }
 
-function pulseStats() {
-  ['dailyScoreNum','levelNum'].forEach(id => {
-    const el = document.getElementById(id);
-    el.classList.remove('pulse');
-    void el.offsetWidth;
-    el.classList.add('pulse');
-  });
-}
-
 function render() {
   document.getElementById('todayDate').textContent = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-  document.getElementById('dailyScoreNum').textContent = stats.dailyScore;
-  document.getElementById('streakNum').textContent = stats.streak;
-
-  const level = Math.floor(stats.totalPoints / LEVEL_STEP) + 1;
-  const into = stats.totalPoints % LEVEL_STEP;
-  document.getElementById('levelNum').textContent = level;
-  document.getElementById('levelProgressLbl').textContent = into + ' / ' + LEVEL_STEP;
-  document.getElementById('levelBarFill').style.width = (into / LEVEL_STEP * 100) + '%';
 
   const today = todayStr();
   const tomorrow = tomorrowStr();
